@@ -1,4 +1,4 @@
-name: OpenVINO backend (Windows)
+name: Check memory leak for OpenVINO backend (Windows)
 
 on: [push, pull_request]
 
@@ -41,50 +41,6 @@ jobs:
 
     - uses: actions/checkout@v2
       with:
-        ref: main
-        path: baseline
-        fetch-depth: 0
-
-    - name: Update DEPS for main branch
-      shell: pwsh
-      run: |
-        cd baseline
-        (Get-Content -path .\DEPS -Raw) -replace "'checkout_onnxruntime': True", "'checkout_onnxruntime': False" | Set-Content -path .\DEPS
-        (Get-Content -path .\DEPS -Raw) -replace "'checkout_samples': True", "'checkout_samples': False" | Set-Content -path .\DEPS
-
-    - name: Sync code for main branch
-      shell: cmd
-      run: |
-        set "PATH=%CD%\..\depot_tools;%PATH%"
-        set "DEPOT_TOOLS_WIN_TOOLCHAIN=0"
-        cd baseline
-        copy scripts\standalone.gclient .gclient
-        gclient sync
-
-    - name: Generate project for main branch
-      shell: cmd
-      run: |
-        set "PATH=%CD%\..\depot_tools;%PATH%"
-        set "DEPOT_TOOLS_WIN_TOOLCHAIN=0"
-        cd baseline
-        gn gen out\Release --args="webnn_enable_openvino=true is_debug=false"
-
-    - name: Build for main branch
-      shell: cmd
-      run: |
-        set "PATH=%CD%\..\depot_tools;%PATH%"
-        set "DEPOT_TOOLS_WIN_TOOLCHAIN=0"
-        cd baseline
-        ninja -C out\Release
-
-    - name: Test for main branch
-      shell: cmd
-      run: |
-        baseline\workflow_scripts\test_by_openvino_windows.bat baseline || true
-        rmdir /s /q baseline
-
-    - uses: actions/checkout@v2
-      with:
         path: update
         fetch-depth: 0
 
@@ -110,7 +66,7 @@ jobs:
         set "PATH=%CD%\..\depot_tools;%PATH%"
         set "DEPOT_TOOLS_WIN_TOOLCHAIN=0"
         cd update
-        gn gen out\Release --args="webnn_enable_openvino=true is_debug=false"
+        gn gen out\Debug --args="webnn_enable_openvino=true is_debug=true"
 
     - name: Build for update branch
       shell: cmd
@@ -118,14 +74,15 @@ jobs:
         set "PATH=%CD%\..\depot_tools;%PATH%"
         set "DEPOT_TOOLS_WIN_TOOLCHAIN=0"
         cd update
-        ninja -C out\Release
+        ninja -C out\Debug
 
-    - name: Test for update branch
+    - name: Check memory leak for update branch
       shell: cmd
       run: |
-        update\workflow_scripts\test_by_openvino_windows.bat update || true
-
-    - name: Regression check
-      run: |
-        echo "Regression checking..."
-        python update\workflow_scripts\regression_check.py ${{ github.workspace }}\..\baseline_end2endtests.json ${{ github.workspace }}\..\update_end2endtests.json
+        cd update
+        echo "Run End2End Tests..."
+        out\Debug\webnn_end2end_tests.exe --gtest_output=json:${{ github.workspace }}\..\update_end2endtests.json > update_end2endtests.txt || true
+        findstr /s /n "Detected memory leaks!" update_end2endtests.txt && python -c "raise Exception('Detected memory leaks!')" 
+        echo "No memory leaks!"
+        cd ..
+        rmdir /s /q update

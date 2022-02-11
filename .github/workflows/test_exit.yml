@@ -1,0 +1,16 @@
+name: Check memory leak for OpenVINO backend (Windows)
+
+on: [push, pull_request]
+
+jobs:
+
+  job:
+
+    runs-on: windows-latest
+
+    steps:
+    - name: Check memory leak for update branch
+      shell: cmd
+      run: |
+        python -c "print('Error has been detected!'); raise Exception('Memory leak detected!')"
+

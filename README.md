@@ -9,6 +9,7 @@
 [![oneDNN backend (Linux)](https://github.com/webmachinelearning/webnn-native/actions/workflows/build_test_onednn_linux.yml/badge.svg)](https://github.com/webmachinelearning/webnn-native/actions/workflows/build_test_onednn_linux.yml)
 [![oneDNN backend (Windows)](https://github.com/webmachinelearning/webnn-native/actions/workflows/build_test_onednn_windows.yml/badge.svg)](https://github.com/webmachinelearning/webnn-native/actions/workflows/build_test_onednn_windows.yml)
 [![Check memory leak for DirectML backend (Windows)](https://github.com/webmachinelearning/webnn-native/actions/workflows/memory_leak_dml_windows.yml/badge.svg)](https://github.com/webmachinelearning/webnn-native/actions/workflows/memory_leak_dml_windows.yml)
+[![Check memory leak for OpenVINO backend (Windows)](https://github.com/webmachinelearning/webnn-native/actions/workflows/memory_leak_openvino_windows.yml/badge.svg)](https://github.com/webmachinelearning/webnn-native/actions/workflows/memory_leak_openvino_windows.yml)
 
 # WebNN-native
 
