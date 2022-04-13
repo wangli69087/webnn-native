@@ -6,7 +6,7 @@ jobs:
 
   job:
 
-    runs-on: windows-latest
+    runs-on: windows-2019
 
     steps:
     - name: Git config
@@ -56,4 +56,4 @@ jobs:
       run: |
         cd update
         echo "Run End2End Tests..."
-        out\Debug\webnn_end2end_tests.exe --gtest_filter=-GemmTests.ScalarBias:Pool2dTests.MaxPool2dDilationsDefault:Pool2dTests.MaxPool2dDilationsNhwc:Pool2dTests.*Pool2dAutoPadExplicitOutputSizes4x4Nhwc:Pool2dTests.*Pool2dAutoPadExplicitRoundingTypeCeilNhwc
+        out\Debug\webnn_end2end_tests.exe --gtest_filter=-ConvTranspose2dTests.Conv2dTransposeDefault:ConvTranspose2dTests.Conv2dTransposeNchwHwoi:ConvTranspose2dTests.Conv2dTransposeNchwOhwi:ConvTranspose2dTests.Conv2dTransposeNhwcIohw:ConvTranspose2dTests.Conv2dTransposeNhwcHwoi:ConvTranspose2dTests.Conv2dTransposeNhwcOhwi:ConvTranspose2dTests.Conv2dTransposeWithOutputPaddingDefault:ConvTranspose2dTests.Conv2dTransposeWithOutputPaddingNchwHwoi:ConvTranspose2dTests.Conv2dTransposeWithOutputPaddingNchwOhwi:ConvTranspose2dTests.Conv2dTransposeWithOutputPaddingNhwcIohw:ConvTranspose2dTests.Conv2dTransposeWithOutputPaddingNhwcHwoi:ConvTranspose2dTests.Conv2dTransposeWithOutputPaddingNhwcOhwi:ConvTranspose2dTests.Conv2dTransposeWithAutoPadSameUpperDefault:ConvTranspose2dTests.Conv2dTransposeWithAutoPadExplicitDefault:ConvTranspose2dTests.Conv2dTransposeWithAutoPadSameLowerDefault:Pool2dTests.MaxPool2dDilationsDefault:Pool2dTests.MaxPool2dDilationsNhwc
