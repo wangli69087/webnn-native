@@ -19,10 +19,15 @@
 #include "webnn_native/Operand.h"
 #include "webnn_native/ops/Constant.h"
 
-namespace webnn_native { namespace op {
+namespace webnn_native::op {
 
     class Pad final : public OperatorBase {
       public:
+        Pad(GraphBuilderBase* builder,
+            OperandBase* input,
+            uint32_t const* padding,
+            size_t paddingCount,
+            PadOptions const* options);
         Pad(GraphBuilderBase* builder,
             OperandBase* input,
             OperandBase* padding,
@@ -38,11 +43,16 @@ namespace webnn_native { namespace op {
             return &mOptions;
         }
 
+        const std::vector<uint32_t>& GetPadding() const {
+            return mPadding;
+        }
+
       private:
         MaybeError CalculateShape();
+        std::vector<uint32_t> mPadding;
         PadOptions mOptions;
     };
 
-}}  // namespace webnn_native::op
+}  // namespace webnn_native::op
 
 #endif  // WEBNN_NATIVE_OPS_PAD_H_

@@ -17,10 +17,10 @@
 #include "webnn_native/Instance.h"
 #include "webnn_native/dml/ContextDML.h"
 
-namespace webnn_native { namespace dml {
+namespace webnn_native::dml {
 
     Backend::Backend(InstanceBase* instance)
-        : BackendConnection(instance, ml::BackendType::DirectML) {
+        : BackendConnection(instance, wnn::BackendType::DirectML) {
     }
 
     MaybeError Backend::Initialize() {
@@ -30,6 +30,12 @@ namespace webnn_native { namespace dml {
     ContextBase* Backend::CreateContext(ContextOptions const* options) {
         return new Context(options);
     }
+
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+    ContextBase* Backend::CreateContextWithGpuDevice(WGPUDevice device) {
+        return new Context(device);
+    }
+#endif
 
     BackendConnection* Connect(InstanceBase* instance) {
         Backend* backend = new Backend(instance);
@@ -42,4 +48,4 @@ namespace webnn_native { namespace dml {
         return backend;
     }
 
-}}  // namespace webnn_native::dml
+}  // namespace webnn_native::dml

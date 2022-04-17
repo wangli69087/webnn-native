@@ -25,46 +25,58 @@
 
 namespace webnn_native {
 
-    // TODO::Use WebGPU instead of ArrayBufferView
     class NamedOutputsBase : public RefCounted {
       public:
         NamedOutputsBase() = default;
-        virtual ~NamedOutputsBase() = default;
+        virtual ~NamedOutputsBase() {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+            for (auto& output : mOutputs) {
+                WGPUBuffer gpuBuffer =
+                    reinterpret_cast<WGPUBuffer>(output.second.gpuBufferView.buffer);
+                if (gpuBuffer != nullptr) {
+                    wgpuBufferRelease(gpuBuffer);
+                }
+            }
+#endif
+        }
 
         // WebNN API
-        void Set(char const* name, const ArrayBufferView* arrayBuffer) {
-            mOutputs[std::string(name)] = *arrayBuffer;
+        void Set(char const* name, const Resource* resource) {
+            mOutputs[std::string(name)] = *resource;
+            if (resource->gpuBufferView.buffer != nullptr) {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+                WGPUBuffer gpuBuffer = reinterpret_cast<WGPUBuffer>(resource->gpuBufferView.buffer);
+                wgpuBufferReference(gpuBuffer);
+#else
+                UNREACHABLE();
+#endif
+            } else {
 #if defined(WEBNN_ENABLE_WIRE)
-            // malloc a memory to host the result of computing.
-            std::unique_ptr<char> buffer(new char[arrayBuffer->byteLength]);
-            // Prevent destroy from allocator memory after hanlding the command.
-            mOutputs[std::string(name)].buffer = buffer.get();
-            mOutputsBuffer.push_back(std::move(buffer));
+                // malloc a memory to host the result of computing.
+                std::unique_ptr<char> buffer(new char[resource->arrayBufferView.byteLength]);
+                // Prevent destroy from allocator memory after hanlding the command.
+                mOutputs[std::string(name)].arrayBufferView.buffer = buffer.get();
+                mOutputsBuffer.push_back(std::move(buffer));
 #endif  // defined(WEBNN_ENABLE_WIRE)
-        }
-
-        // It's not support char** type in webnn.json to get name.
-        void Get(size_t index, ArrayBufferView const* arrayBuffer) const {
-            size_t i = 0;
-            for (auto& namedOutput : mOutputs) {
-                if (index == i) {
-                    *const_cast<ArrayBufferView*>(arrayBuffer) = namedOutput.second;
-                    return;
-                }
-                ++i;
             }
-            UNREACHABLE();
         }
 
-        ArrayBufferView Get(char const* name) const {
+        void Get(char const* name, ArrayBufferView* arrayBuffer) {
             if (mOutputs.find(std::string(name)) == mOutputs.end()) {
-                return ArrayBufferView();
+                return;
+            }
+            *arrayBuffer = mOutputs[std::string(name)].arrayBufferView;
+        }
+
+        Resource Get(char const* name) const {
+            if (mOutputs.find(std::string(name)) == mOutputs.end()) {
+                return Resource();
             }
             return mOutputs.at(std::string(name));
         }
 
         // Other methods
-        const std::map<std::string, ArrayBufferView>& GetRecords() const {
+        const std::map<std::string, Resource>& GetRecords() const {
             return mOutputs;
         }
 
@@ -73,7 +85,7 @@ namespace webnn_native {
         // the same size memory to hold the result from GraphComputeCmd.
         std::vector<std::unique_ptr<char>> mOutputsBuffer;
 
-        std::map<std::string, ArrayBufferView> mOutputs;
+        std::map<std::string, Resource> mOutputs;
     };
 
 }  // namespace webnn_native

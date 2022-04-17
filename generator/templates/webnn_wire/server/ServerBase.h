@@ -23,7 +23,7 @@
 #include "webnn_wire/WireDeserializeAllocator.h"
 #include "webnn_wire/server/ObjectStorage.h"
 
-namespace webnn_wire { namespace server {
+namespace webnn_wire::server {
 
     class ServerBase : public ChunkedCommandHandler, public ObjectIdResolver {
       public:
@@ -43,8 +43,8 @@ namespace webnn_wire { namespace server {
             {% endfor %}
             //* Release devices last because webnn_native requires this.
             {
-                std::vector<MLContext> handles = mKnownContext.AcquireAllHandles();
-                for (MLContext handle : handles) {
+                std::vector<WNNContext> handles = mKnownContext.AcquireAllHandles();
+                for (WNNContext handle : handles) {
                     procs.contextRelease(handle);
                 }
             }
@@ -101,6 +101,6 @@ namespace webnn_wire { namespace server {
         {% endfor %}
     };
 
-}}  // namespace webnn_wire::server
+}  // namespace webnn_wire::server
 
 #endif  // WEBNNIRE_SERVER_SERVERBASE_H_

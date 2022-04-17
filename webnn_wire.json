@@ -28,8 +28,49 @@
       {"name": "byte offset", "type": "size_t", "default": 0},
       {"name": "result", "type": "ObjectHandle", "handle_type": "operand"}
     ],
+    "graph builder constant with gpu buffer internal": [
+      {"name": "graph builder id", "type": "ObjectId"},
+      {"name": "desc", "type": "operand descriptor", "annotation": "const*"},
+      {"name": "buffer", "type": "uint8_t", "annotation": "const*", "optional": true},
+      {"name": "id", "type": "uint32_t", "default": 0},
+      {"name": "generation", "type": "uint32_t", "default": 0},
+      {"name": "byte length", "type": "size_t"},
+      {"name": "byte offset", "type": "size_t", "default": 0},
+      {"name": "result", "type": "ObjectHandle", "handle_type": "operand"}
+    ],
+    "graph builder gru internal": [
+      {"name": "graph builder id", "type": "ObjectId"},
+      {"name": "input id", "type": "ObjectId"},
+      {"name": "weight id", "type": "ObjectId"},
+      {"name": "recurrent weight id", "type": "ObjectId"},
+      {"name": "steps", "type": "int32_t", "default": 0},
+      {"name": "hidden size", "type": "int32_t", "default": 0},
+      {"name": "options", "type": "gru options", "annotation": "const*"},
+      {"name": "result", "type": "ObjectHandle", "handle_type": "operand array"}
+    ],
+    "graph builder split internal": [
+      {"name": "graph builder id", "type": "ObjectId"},
+      {"name": "input id", "type": "ObjectId"},
+      {"name": "splits", "type": "uint32_t", "annotation": "const*", "length": "splits count"},
+      {"name": "splits count", "type": "uint32_t", "default": 0},
+      {"name": "options", "type": "split options", "annotation": "const*"},
+      {"name": "result", "type": "ObjectHandle", "handle_type": "operand array"}
+    ],
+    "instance create context with gpu device internal": [
+      {"name": "instance id", "type": "ObjectId"},
+      {"name": "device", "type": "uint8_t", "annotation": "const*", "optional": true},
+      {"name": "id", "type": "uint32_t", "default": 0},
+      {"name": "generation", "type": "uint32_t", "default": 0},
+      {"name": "result", "type": "ObjectHandle", "handle_type": "context"}
+    ],
     "graph compute": [
       {"name": "graph id", "type": "ObjectId"},
+      {"name": "inputs id", "type": "ObjectId"},
+      {"name": "outputs id", "type": "ObjectId"}
+    ],
+    "graph compute async": [
+      { "name": "graph id", "type": "ObjectId" },
+      { "name": "request serial", "type": "uint64_t" },
       {"name": "inputs id", "type": "ObjectId"},
       {"name": "outputs id", "type": "ObjectId"}
     ],
@@ -42,25 +83,21 @@
     "named inputs set": [
       {"name": "named inputs id", "type": "ObjectId"},
       {"name": "name", "type": "char", "annotation": "const*", "length": "strlen"},
-      {"name": "buffer", "type": "uint8_t", "annotation": "const*", "length": "byte length"},
+      {"name": "buffer", "type": "uint8_t", "annotation": "const*", "length": "byte length", "optional": true},
       {"name": "byte length", "type": "size_t"},
       {"name": "byte offset", "type": "size_t", "default": 0},
+      {"name": "gpu buffer id", "type": "uint32_t", "default": 0},
+      {"name": "gpu buffer generation", "type": "uint32_t", "default": 0},
       {"name": "dimensions", "type": "int32_t", "annotation": "const*", "length": "dimensions count", "optional": true},
       {"name": "dimensions count", "type": "uint32_t", "default": 0}
     ],
     "named outputs set": [
       {"name": "named outputs id", "type": "ObjectId"},
       {"name": "name", "type": "char", "annotation": "const*", "length": "strlen"},
-      {"name": "buffer", "type": "uint8_t", "annotation": "const*", "length": "byte length"},
       {"name": "byte length", "type": "size_t"},
-      {"name": "byte offset", "type": "size_t", "default": 0}
-    ],
-    "named outputs get": [
-      {"name": "named outputs id", "type": "ObjectId"},
-      {"name": "index", "type": "size_t"},
-      {"name": "buffer", "type": "uint8_t", "annotation": "const*", "length": "byte length"},
-      {"name": "byte length", "type": "size_t"},
-      {"name": "byte offset", "type": "size_t", "default": 0}
+      {"name": "byte offset", "type": "size_t", "default": 0},
+      {"name": "gpu buffer id", "type": "uint32_t", "default": 0},
+      {"name": "gpu buffer generation", "type": "uint32_t", "default": 0}
     ],
     "destroy object": [
       {"name": "object type", "type": "ObjectType"},
@@ -84,22 +121,36 @@
       {"name": "buffer", "type": "uint8_t", "annotation": "const*", "length": "byte length"},
       {"name": "byte length", "type": "size_t"},
       {"name": "byte offset", "type": "size_t", "default": 0}
+    ],
+    "graph compute async callback": [
+      { "name": "graph", "type": "ObjectHandle", "handle_type": "graph" },
+      { "name": "request serial", "type": "uint64_t" },
+      { "name": "status", "type": "compute graph status" },
+      { "name": "message", "type": "char", "annotation": "const*", "length": "strlen" }
     ]
   },
   "special items": {
     "client_side_structures": [
+      "Resource",
       "ArrayBufferView",
+      "GpuBufferView",
+      "GpuDevice",
       "Input"
     ],
     "client_side_commands": [
       "ContextPopErrorScope",
       "ContextSetUncapturedErrorCallback",
       "GraphBuilderConstant",
+      "GraphBuilderConstantWithGpuBuffer",
+      "GraphBuilderGru",
+      "GraphBuilderSplit",
+      "InstanceCreateContextWithGpuDevice",
       "NamedInputsSet",
       "NamedOutputsSet",
       "NamedOutputsGet",
       "OperandArraySize",
-      "OperatorArraySize"
+      "OperatorArraySize",
+      "GraphComputeAsync"
     ],
     "client_handwritten_commands": [
       "GraphCompute",
@@ -112,7 +163,8 @@
       "NamedInputs",
       "NamedOutputs",
       "OperandArray",
-      "OperatorArray"
+      "OperatorArray",
+      "Instance"
     ],
     "server_custom_pre_handler_commands": [],
     "server_handwritten_commands": [],

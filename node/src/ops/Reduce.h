@@ -4,7 +4,7 @@
 #include <napi.h>
 #include <webnn/webnn_cpp.h>
 
-namespace node { namespace op {
+namespace node::op {
 
     enum ReduceType {
         kReduceL1 = 0,
@@ -19,9 +19,9 @@ namespace node { namespace op {
     struct Reduce {
         static Napi::Value Build(ReduceType opType,
                                  const Napi::CallbackInfo& info,
-                                 ml::GraphBuilder builder);
+                                 wnn::GraphBuilder builder);
     };
 
-}}  // namespace node::op
+}  // namespace node::op
 
 #endif  // NODE_OPS_REDUCE_H_

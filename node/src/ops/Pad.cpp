@@ -16,24 +16,24 @@
 
 #include "Utils.h"
 
-namespace node { namespace op {
+namespace node::op {
 
-    Napi::Value Pad::Build(const Napi::CallbackInfo& info, ml::GraphBuilder builder) {
+    Napi::Value Pad::Build(const Napi::CallbackInfo& info, wnn::GraphBuilder builder) {
         // Operand pad(Operand input, Operand padding, optional PadOptions options = {});
         WEBNN_NODE_ASSERT(info.Length() == 2 || info.Length() == 3,
                           "The number of arguments is invalid.");
 
         std::vector<napi_value> args;
-        ml::Operand input;
+        wnn::Operand input;
         WEBNN_NODE_ASSERT(GetOperand(info[0], input, args), "The input parameter is invalid.");
-        ml::Operand padding;
+        wnn::Operand padding;
         WEBNN_NODE_ASSERT(GetOperand(info[1], padding, args), "The padding parameter is invalid.");
 
         // dictionary PadOptions {
         //   PaddingMode mode;
         //   float value = false;
         // };
-        ml::PadOptions options;
+        wnn::PadOptions options;
         if (info.Length() == 3 && !info[2].IsUndefined()) {
             WEBNN_NODE_ASSERT(info[2].IsObject(), "The options must be an object.");
             Napi::Object jsOptions = info[2].As<Napi::Object>();
@@ -53,4 +53,4 @@ namespace node { namespace op {
         return object;
     }
 
-}}  // namespace node::op
+}  // namespace node::op

@@ -15,33 +15,44 @@
 
 #include "webnn_wire/server/Server.h"
 
-namespace webnn_wire { namespace server {
+namespace webnn_wire::server {
 
     bool Server::DoNamedOutputsSet(ObjectId namedOutputsId,
                                    char const* name,
-                                   uint8_t const* buffer,
                                    size_t byteLength,
-                                   size_t byteOffset) {
+                                   size_t byteOffset,
+                                   uint32_t gpuBufferId,
+                                   uint32_t gpuBufferGeneration) {
         auto* namedOutputs = NamedOutputsObjects().Get(namedOutputsId);
         if (namedOutputs == nullptr) {
             return false;
         }
 
-        MLArrayBufferView value;
-        value.buffer = const_cast<void*>(static_cast<const void*>(buffer));
-        value.byteLength = byteLength;
-        value.byteOffset = byteOffset;
-        mProcs.namedOutputsSet(namedOutputs->handle, name, &value);
+        WNNResource resource = {};
+        if (gpuBufferId != 0) {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+            resource.gpuBufferView.buffer = GetWGPUBuffer(gpuBufferId, gpuBufferGeneration);
+            resource.gpuBufferView.id = gpuBufferId;
+            resource.gpuBufferView.generation = gpuBufferGeneration;
+#endif
+        } else {
+            resource.arrayBufferView.byteLength = byteLength;
+            resource.arrayBufferView.byteOffset = byteOffset;
+
+            // Save the output names in server because char** type isn't supported in webnn.json to
+            // get name.
+            if (mOutputNamesMap.find(namedOutputsId) == mOutputNamesMap.end()) {
+                std::vector<std::string> names;
+                names.push_back(std::string(name));
+                mOutputNamesMap.insert(std::make_pair(namedOutputsId, std::move(names)));
+            } else {
+                auto& outputNames = mOutputNamesMap[namedOutputsId];
+                outputNames.push_back(std::string(name));
+            }
+        }
+        mProcs.namedOutputsSet(namedOutputs->handle, name, &resource);
+
         return true;
     }
 
-    bool Server::DoNamedOutputsGet(ObjectId namedOutputsId,
-                                   size_t index,
-                                   uint8_t const* buffer,
-                                   size_t byteLength,
-                                   size_t byteOffset) {
-        UNREACHABLE();
-        return true;
-    }
-
-}}  // namespace webnn_wire::server
+}  // namespace webnn_wire::server

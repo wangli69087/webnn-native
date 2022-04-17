@@ -22,15 +22,30 @@
 
 #include <map>
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
     class Graph final : public ObjectBase {
       public:
         using ObjectBase::ObjectBase;
 
-        MLComputeGraphStatus Compute(MLNamedInputs inputs, MLNamedOutputs outputs);
+        WNNComputeGraphStatus Compute(WNNNamedInputs inputs, WNNNamedOutputs outputs);
+        void ComputeAsync(WNNNamedInputs inputs,
+                          WNNNamedOutputs outputs,
+                          WNNComputeAsyncCallback callback,
+                          void* userdata);
+        bool OnComputeAsyncCallback(uint64_t requestSerial,
+                                    WNNComputeGraphStatus status,
+                                    const char* message);
+
+      private:
+        struct ComputeAsyncRequest {
+            WNNComputeAsyncCallback callback = nullptr;
+            void* userdata = nullptr;
+        };
+        std::map<uint64_t, ComputeAsyncRequest> mComputeAsyncRequests;
+        uint64_t mComputeAsyncRequestSerial = 0;
     };
 
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client
 
 #endif  // WEBNN_WIRE_CLIENT_GRAPH_H_

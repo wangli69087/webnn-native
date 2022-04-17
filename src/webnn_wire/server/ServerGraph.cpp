@@ -16,7 +16,33 @@
 #include "webnn_wire/WireCmd_autogen.h"
 #include "webnn_wire/server/Server.h"
 
-namespace webnn_wire { namespace server {
+namespace webnn_wire::server {
+
+    bool Server::SerializeComputeResult(ObjectId outputsId) {
+        auto* namedOutputs = NamedOutputsObjects().Get(outputsId);
+        if (mOutputNamesMap.find(outputsId) == mOutputNamesMap.end()) {
+            return false;
+        }
+        for (auto& name : mOutputNamesMap[outputsId]) {
+            WNNArrayBufferView arrayBuffer = {};
+            mProcs.namedOutputsGet(namedOutputs->handle, name.data(), &arrayBuffer);
+            if (arrayBuffer.buffer == nullptr) {
+                return false;
+            }
+
+            // Return the result.
+            ReturnGraphComputeResultCmd cmd;
+            cmd.namedOutputs = ObjectHandle{outputsId, namedOutputs->generation};
+            cmd.name = name.data();
+            cmd.buffer = static_cast<uint8_t*>(arrayBuffer.buffer);
+            cmd.byteLength = arrayBuffer.byteLength;
+            cmd.byteOffset = arrayBuffer.byteOffset;
+            SerializeCommand(cmd);
+        }
+        // Reset the mOutputNamesMap which host in the server.
+        mOutputNamesMap.erase(outputsId);
+        return true;
+    }
 
     bool Server::DoGraphCompute(ObjectId graphId, ObjectId inputsId, ObjectId outputsId) {
         auto* graph = GraphObjects().Get(graphId);
@@ -27,18 +53,44 @@ namespace webnn_wire { namespace server {
         }
 
         mProcs.graphCompute(graph->handle, namedInputs->handle, namedOutputs->handle);
+        return SerializeComputeResult(outputsId);
+    }
 
-        MLArrayBufferView arrayBuffer = {};
-        mProcs.namedOutputsGet(namedOutputs->handle, 0, &arrayBuffer);
-        // Return the result.
-        ReturnGraphComputeResultCmd cmd;
-        cmd.name = "TODO: use the name getting from namedOutputs";
-        cmd.buffer = static_cast<uint8_t*>(arrayBuffer.buffer);
-        cmd.byteLength = arrayBuffer.byteLength;
-        cmd.byteOffset = arrayBuffer.byteOffset;
+    bool Server::DoGraphComputeAsync(ObjectId graphId,
+                                     uint64_t requestSerial,
+                                     ObjectId inputsId,
+                                     ObjectId outputsId) {
+        auto* graph = GraphObjects().Get(graphId);
+        auto* namedInputs = NamedInputsObjects().Get(inputsId);
+        auto* namedOutputs = NamedOutputsObjects().Get(outputsId);
+        if (graph == nullptr || namedInputs == nullptr || namedOutputs == nullptr) {
+            return false;
+        }
 
-        SerializeCommand(cmd);
+        auto userdata = MakeUserdata<ComputeAsyncUserdata>();
+        userdata->requestSerial = requestSerial;
+        userdata->graph = ObjectHandle{graphId, graph->generation};
+        userdata->namedOutputsObjectID = outputsId;
+
+        mProcs.graphComputeAsync(graph->handle, namedInputs->handle, namedOutputs->handle,
+                                 ForwardToServer<&Server::OnGraphComputeAsyncCallback>,
+                                 userdata.release());
         return true;
     }
 
-}}  // namespace webnn_wire::server
+    void Server::OnGraphComputeAsyncCallback(ComputeAsyncUserdata* userdata,
+                                             WNNComputeGraphStatus status,
+                                             const char* message) {
+        if (status == WNNComputeGraphStatus_Success) {
+            SerializeComputeResult(userdata->namedOutputsObjectID);
+        }
+        ReturnGraphComputeAsyncCallbackCmd cmd;
+        cmd.graph = userdata->graph;
+        cmd.requestSerial = userdata->requestSerial;
+        cmd.status = status;
+        cmd.message = message;
+
+        SerializeCommand(cmd);
+    }
+
+}  // namespace webnn_wire::server

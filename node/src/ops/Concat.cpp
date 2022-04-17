@@ -17,14 +17,14 @@
 #include "Operand.h"
 #include "Utils.h"
 
-namespace node { namespace op {
+namespace node::op {
 
-    Napi::Value Concat::Build(const Napi::CallbackInfo& info, ml::GraphBuilder builder) {
+    Napi::Value Concat::Build(const Napi::CallbackInfo& info, wnn::GraphBuilder builder) {
         // Operand concat(sequence<Operand> inputs, long axis);
         WEBNN_NODE_ASSERT(info.Length() == 2, "The number of arguments is invalid.");
 
         std::vector<napi_value> args;
-        std::vector<ml::Operand> inputs;
+        std::vector<wnn::Operand> inputs;
         WEBNN_NODE_ASSERT(GetOperandArray(info[0], inputs, args),
                           "The input operands are invalid.");
         int32_t axis;
@@ -34,4 +34,4 @@ namespace node { namespace op {
         operand->SetImpl(builder.Concat(inputs.size(), inputs.data(), axis));
         return object;
     }
-}}  // namespace node::op
+}  // namespace node::op

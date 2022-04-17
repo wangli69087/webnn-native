@@ -17,19 +17,26 @@
 #include "webnn_wire/WireCmd_autogen.h"
 #include "webnn_wire/client/Client.h"
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
-    void NamedInputs::Set(char const* name, MLInput const* input) {
-        NamedInputsSetCmd cmd;
+    void NamedInputs::Set(char const* name, WNNInput const* input) {
+        NamedInputsSetCmd cmd = {};
         cmd.namedInputsId = this->id;
         cmd.name = name;
-        cmd.buffer = static_cast<const uint8_t*>(input->resource.buffer);
-        cmd.byteLength = input->resource.byteLength;
-        cmd.byteOffset = input->resource.byteOffset;
+        // Input type is ArrayBufferView
+        WNNArrayBufferView arrayBufferView = input->resource.arrayBufferView;
+        if (arrayBufferView.buffer != nullptr) {
+            cmd.buffer = static_cast<const uint8_t*>(arrayBufferView.buffer);
+            cmd.byteLength = arrayBufferView.byteLength;
+            cmd.byteOffset = arrayBufferView.byteOffset;
+        } else {
+            cmd.gpuBufferId = input->resource.gpuBufferView.id;
+            cmd.gpuBufferGeneration = input->resource.gpuBufferView.generation;
+        }
         cmd.dimensions = input->dimensions;
         cmd.dimensionsCount = input->dimensionsCount;
 
         client->SerializeCommand(cmd);
     }
 
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client

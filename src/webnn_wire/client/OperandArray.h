@@ -22,15 +22,20 @@
 
 #include <map>
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
     class OperandArray final : public ObjectBase {
       public:
         using ObjectBase::ObjectBase;
 
         size_t Size();
+        // Set the size of operand array from client.
+        void SetSize(size_t size);
+
+      private:
+        size_t mSize = 0;
     };
 
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client
 
 #endif  // WEBNN_WIRE_CLIENT_OPERAND_ARRAY_H_

@@ -15,13 +15,15 @@
 
 #include "webnn_wire/server/Server.h"
 
-namespace webnn_wire { namespace server {
+namespace webnn_wire::server {
 
     bool Server::DoNamedInputsSet(ObjectId namedInputsId,
                                   char const* name,
                                   uint8_t const* buffer,
                                   size_t byteLength,
                                   size_t byteOffset,
+                                  uint32_t gpuBufferId,
+                                  uint32_t gpuBufferGeneration,
                                   int32_t const* dimensions,
                                   uint32_t dimensionsCount) {
         auto* namedInputs = NamedInputsObjects().Get(namedInputsId);
@@ -29,16 +31,27 @@ namespace webnn_wire { namespace server {
             return false;
         }
 
-        MLArrayBufferView value;
-        value.buffer = const_cast<void*>(static_cast<const void*>(buffer));
-        value.byteLength = byteLength;
-        value.byteOffset = byteOffset;
-        MLInput input;
+        // The type of output data is ArrayBufferView
+        WNNInput input = {};
+        if (buffer != nullptr) {
+            WNNArrayBufferView value = {};
+            value.buffer = const_cast<void*>(static_cast<const void*>(buffer));
+            value.byteLength = byteLength;
+            value.byteOffset = byteOffset;
+            input.resource.arrayBufferView = value;
+        } else {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+            WNNGpuBufferView value = {};
+            value.buffer = GetWGPUBuffer(gpuBufferId, gpuBufferGeneration);
+            value.id = gpuBufferId;
+            value.generation = gpuBufferGeneration;
+            input.resource.gpuBufferView = value;
+#endif
+        }
         input.dimensions = dimensions;
         input.dimensionsCount = dimensionsCount;
-        input.resource = value;
         mProcs.namedInputsSet(namedInputs->handle, name, &input);
         return true;
     }
 
-}}  // namespace webnn_wire::server
+}  // namespace webnn_wire::server

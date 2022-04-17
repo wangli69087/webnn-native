@@ -19,7 +19,7 @@
 #include "webnn_wire/ObjectType_autogen.h"
 #include "webnn_wire/client/ObjectBase.h"
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
     template <typename T>
     struct ObjectTypeToTypeEnum {
@@ -36,11 +36,11 @@ namespace webnn_wire { namespace client {
             };
         {% endif %}
 
-        inline {{Type}}* FromAPI(ML{{Type}} obj) {
+        inline {{Type}}* FromAPI(WNN{{Type}} obj) {
             return reinterpret_cast<{{Type}}*>(obj);
         }
-        inline ML{{Type}} ToAPI({{Type}}* obj) {
-            return reinterpret_cast<ML{{Type}}>(obj);
+        inline WNN{{Type}} ToAPI({{Type}}* obj) {
+            return reinterpret_cast<WNN{{Type}}>(obj);
         }
 
         template <>
@@ -49,6 +49,6 @@ namespace webnn_wire { namespace client {
         };
 
     {% endfor %}
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client
 
 #endif  // WEBNNNWIRE_CLIENT_APIOBJECTS_AUTOGEN_H_

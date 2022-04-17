@@ -20,13 +20,20 @@
 #include "webnn_native/ErrorScope.h"
 #include "webnn_native/webnn_platform.h"
 
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+#    include <webgpu/webgpu.h>
+#endif
+
 class WebGLRenderingContext;
 namespace webnn_native {
 
     class ContextBase : public RefCounted {
       public:
         explicit ContextBase(ContextOptions const* options = nullptr);
-        virtual ~ContextBase() = default;
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        explicit ContextBase(WGPUDevice wgpuDevice);
+#endif
+        virtual ~ContextBase();
 
         bool ConsumedError(MaybeError maybeError) {
             if (DAWN_UNLIKELY(maybeError.IsError())) {
@@ -36,13 +43,26 @@ namespace webnn_native {
             return false;
         }
 
+        template <typename T>
+        bool ConsumedError(ResultOrError<T> resultOrError, T* result) {
+            if (DAWN_UNLIKELY(resultOrError.IsError())) {
+                HandleError(resultOrError.AcquireError());
+                return true;
+            }
+            *result = resultOrError.AcquireSuccess();
+            return false;
+        }
+
         GraphBase* CreateGraph();
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        WGPUDevice GetWGPUDevice();
+#endif
 
         // Dawn API
-        void InjectError(ml::ErrorType type, const char* message);
-        void PushErrorScope(ml::ErrorFilter filter);
-        bool PopErrorScope(ml::ErrorCallback callback, void* userdata);
-        void SetUncapturedErrorCallback(ml::ErrorCallback callback, void* userdata);
+        void InjectError(wnn::ErrorType type, const char* message);
+        void PushErrorScope(wnn::ErrorFilter filter);
+        bool PopErrorScope(wnn::ErrorCallback callback, void* userdata);
+        void SetUncapturedErrorCallback(wnn::ErrorCallback callback, void* userdata);
         ContextOptions GetContextOptions() {
             return mContextOptions;
         }
@@ -57,6 +77,9 @@ namespace webnn_native {
         Ref<ErrorScope> mCurrentErrorScope;
 
         ContextOptions mContextOptions;
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        WGPUDevice mWGPUDevice;
+#endif
     };
 
 }  // namespace webnn_native

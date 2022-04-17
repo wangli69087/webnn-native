@@ -18,7 +18,7 @@
 #include <napi.h>
 #include <webnn/webnn_cpp.h>
 
-namespace node { namespace op {
+namespace node::op {
 
     enum Pool2dType {
         kAveragePool2d = 0,
@@ -28,10 +28,10 @@ namespace node { namespace op {
 
     struct Pool2d {
         static Napi::Value Build(const Napi::CallbackInfo& info,
-                                 ml::GraphBuilder builder,
+                                 wnn::GraphBuilder builder,
                                  Pool2dType type);
     };
 
-}}  // namespace node::op
+}  // namespace node::op
 
 #endif  // NODE_OPS_POOL2D_H_

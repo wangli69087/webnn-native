@@ -29,15 +29,21 @@ namespace webnn_wire {
         return mImpl->HandleCommands(commands, size);
     }
 
-    bool WireServer::InjectInstance(MLInstance instance, uint32_t id, uint32_t generation) {
+    bool WireServer::InjectInstance(WNNInstance instance, uint32_t id, uint32_t generation) {
         return mImpl->InjectInstance(instance, id, generation);
     }
 
-    bool WireServer::InjectContext(MLContext context, uint32_t id, uint32_t generation) {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+    bool WireServer::InjectDawnWireServer(dawn_wire::WireServer* dawn_wire_server) {
+        return mImpl->InjectDawnWireServer(dawn_wire_server);
+    }
+#endif
+
+    bool WireServer::InjectContext(WNNContext context, uint32_t id, uint32_t generation) {
         return mImpl->InjectContext(context, id, generation);
     }
 
-    bool WireServer::InjectNamedInputs(MLNamedInputs namedInputs,
+    bool WireServer::InjectNamedInputs(WNNNamedInputs namedInputs,
                                        uint32_t id,
                                        uint32_t generation,
                                        uint32_t contextId,
@@ -45,13 +51,13 @@ namespace webnn_wire {
         return mImpl->InjectNamedInputs(namedInputs, id, generation, contextId, contextGeneration);
     }
 
-    bool WireServer::InjectNamedOperands(MLNamedOperands namedOperands,
+    bool WireServer::InjectNamedOperands(WNNNamedOperands namedOperands,
                                          uint32_t id,
                                          uint32_t generation) {
         return mImpl->InjectNamedOperands(namedOperands, id, generation);
     }
 
-    bool WireServer::InjectNamedOutputs(MLNamedOutputs namedOutputs,
+    bool WireServer::InjectNamedOutputs(WNNNamedOutputs namedOutputs,
                                         uint32_t id,
                                         uint32_t generation) {
         return mImpl->InjectNamedOutputs(namedOutputs, id, generation);

@@ -23,20 +23,20 @@
 #include <string>
 #include <vector>
 
-namespace ml {
+namespace wnn {
     enum class ErrorType : uint32_t;
 }
 
 namespace dawn {
-    using ErrorType = ml::ErrorType;
+    using ErrorType = wnn::ErrorType;
 }
 
 namespace webnn_native {
     enum class InternalErrorType : uint32_t;
 
-    class DAWN_NO_DISCARD ErrorData {
+    class ErrorData {
       public:
-        static DAWN_NO_DISCARD std::unique_ptr<ErrorData> Create(InternalErrorType type,
+        [[nodiscard]] static std::unique_ptr<ErrorData> Create(InternalErrorType type,
                                                                  std::string message,
                                                                  const char* file,
                                                                  const char* function,

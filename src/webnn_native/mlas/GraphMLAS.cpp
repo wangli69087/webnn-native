@@ -28,7 +28,7 @@
 
 #define VERBOSE 0
 
-namespace webnn_native { namespace mlas {
+namespace webnn_native::mlas {
 
     void* AlignedAlloc(size_t size) {
         if (size <= 0)
@@ -57,7 +57,7 @@ namespace webnn_native { namespace mlas {
 
     class Memory : public RefCounted {
       public:
-        explicit Memory(ml::OperandType type,
+        explicit Memory(wnn::OperandType type,
                         const std::vector<int32_t>& dims,
                         bool blockedLayout = false)
             : mType(type), mDimensions(dims), mBuffer(nullptr), mBlockedLayout(blockedLayout) {
@@ -74,22 +74,22 @@ namespace webnn_native { namespace mlas {
                                                 std::multiplies<size_t>{});
             size_t elementSize;
             switch (mType) {
-                case ml::OperandType::Float32:
+                case wnn::OperandType::Float32:
                     elementSize = sizeof(float);
                     break;
-                case ml::OperandType::Float16:
+                case wnn::OperandType::Float16:
                     elementSize = sizeof(int16_t);
                     break;
-                case ml::OperandType::Int32:
+                case wnn::OperandType::Int32:
                     elementSize = sizeof(int32_t);
                     break;
-                case ml::OperandType::Uint32:
+                case wnn::OperandType::Uint32:
                     elementSize = sizeof(uint32_t);
                     break;
-                case ml::OperandType::Int8:
+                case wnn::OperandType::Int8:
                     elementSize = sizeof(int8_t);
                     break;
-                case ml::OperandType::Uint8:
+                case wnn::OperandType::Uint8:
                     elementSize = sizeof(uint8_t);
                     break;
                 default:
@@ -100,7 +100,7 @@ namespace webnn_native { namespace mlas {
             return mBuffer != nullptr;
         }
 
-        ml::OperandType GetType() {
+        wnn::OperandType GetType() {
             return mType;
         }
         std::vector<int32_t> GetDimensions() {
@@ -117,7 +117,7 @@ namespace webnn_native { namespace mlas {
         }
 
       private:
-        ml::OperandType mType;
+        wnn::OperandType mType;
         std::vector<int32_t> mDimensions;
         void* mBuffer;
         size_t mByteLength;
@@ -310,7 +310,7 @@ namespace webnn_native { namespace mlas {
                             &workingBufferSize, threadPool);
             if (workingBufferSize > 0) {
                 mWorkingBuffer =
-                    AcquireRef(new Memory(ml::OperandType::Float32, {int32_t(workingBufferSize)}));
+                    AcquireRef(new Memory(wnn::OperandType::Float32, {int32_t(workingBufferSize)}));
                 if (!mWorkingBuffer->Allocate()) {
                     dawn::ErrorLog() << "Failed to allocate working buffer";
                     return false;
@@ -467,7 +467,7 @@ namespace webnn_native { namespace mlas {
         return {};
     }
 
-    MaybeError Graph::AddOutput(const std::string& name, const OperandBase* output) {
+    MaybeError Graph::AddOutput(std::string_view name, const OperandBase* output) {
         DAWN_ASSERT(mMemoryMap.find(output) != mMemoryMap.end());
         Ref<Memory> memory = mMemoryMap.at(output);
         if (memory->IsBlockedLayout()) {
@@ -487,13 +487,13 @@ namespace webnn_native { namespace mlas {
             mKernels.push_back(AcquireRef(new ReorderOutput(memory, nchwMemory, outputShape)));
             memory = nchwMemory;
         }
-        mOutputs.insert(std::make_pair(name, memory));
+        mOutputs.insert(std::make_pair(name.data(), memory));
         return {};
     }
 
     MaybeError Graph::AddClamp(const op::Clamp* clamp) {
         const OperandBase* inputOperand = clamp->Inputs()[0].Get();
-        if (inputOperand->Type() != ml::OperandType::Float32) {
+        if (inputOperand->Type() != wnn::OperandType::Float32) {
             return DAWN_INTERNAL_ERROR("Only support float32");
         }
         DAWN_ASSERT(mMemoryMap.find(inputOperand) != mMemoryMap.end());
@@ -522,11 +522,11 @@ namespace webnn_native { namespace mlas {
             return DAWN_UNIMPLEMENTED_ERROR("Binary op is unimplemented.");
         }
         const OperandBase* a = binary->Inputs()[0].Get();
-        if (a->Type() != ml::OperandType::Float32) {
+        if (a->Type() != wnn::OperandType::Float32) {
             return DAWN_INTERNAL_ERROR("Only support float32 input.");
         }
         const OperandBase* b = binary->Inputs()[1].Get();
-        if (b->Type() != ml::OperandType::Float32) {
+        if (b->Type() != wnn::OperandType::Float32) {
             return DAWN_INTERNAL_ERROR("Only support float32 input.");
         }
         if (a->Shape() != b->Shape()) {
@@ -594,18 +594,18 @@ namespace webnn_native { namespace mlas {
 
     MaybeError Graph::AddConv2d(const op::Conv2d* conv2d) {
         const Conv2dOptions* options = conv2d->GetOptions();
-        if (options->inputLayout != ml::InputOperandLayout::Nchw) {
+        if (options->inputLayout != wnn::InputOperandLayout::Nchw) {
             return DAWN_INTERNAL_ERROR("Only support nchw input layout");
         }
-        if (options->filterLayout != ml::FilterOperandLayout::Oihw) {
+        if (options->filterLayout != wnn::Conv2dFilterOperandLayout::Oihw) {
             return DAWN_INTERNAL_ERROR("Only support iohw filter layout");
         }
         const OperandBase* inputOperand = conv2d->Inputs()[0].Get();
-        if (inputOperand->Type() != ml::OperandType::Float32) {
+        if (inputOperand->Type() != wnn::OperandType::Float32) {
             return DAWN_INTERNAL_ERROR("Only support float32 input");
         }
         const OperandBase* filterOperand = conv2d->Inputs()[1].Get();
-        if (filterOperand->Type() != ml::OperandType::Float32) {
+        if (filterOperand->Type() != wnn::OperandType::Float32) {
             return DAWN_INTERNAL_ERROR("Only support float32 filter");
         }
         size_t groupCount = options->groups;
@@ -624,7 +624,7 @@ namespace webnn_native { namespace mlas {
                 paddingEndingHeight = options->padding[1],
                 paddingBeginningWidth = options->padding[2],
                 paddingEndingWidth = options->padding[3];
-        if (options->autoPad != ml::AutoPad::Explicit) {
+        if (options->autoPad != wnn::AutoPad::Explicit) {
             utils::ComputeImplicitPaddingForAutoPad(options->autoPad, options->dilations[0],
                                                     inputHeight, filterHeight, options->strides[0],
                                                     paddingBeginningHeight, paddingEndingHeight);
@@ -734,7 +734,7 @@ namespace webnn_native { namespace mlas {
         Ref<Memory> biasMemory;
         if (options->bias) {
             const OperandBase* biasOperand = conv2d->Inputs()[2].Get();
-            if (biasOperand->Type() != ml::OperandType::Float32) {
+            if (biasOperand->Type() != wnn::OperandType::Float32) {
                 return DAWN_INTERNAL_ERROR("Only support float32 bias");
             }
             DAWN_ASSERT(mMemoryMap.find(biasOperand) != mMemoryMap.end());
@@ -819,11 +819,11 @@ namespace webnn_native { namespace mlas {
 
     MaybeError Graph::AddPool2d(const op::Pool2d* pool2d) {
         const Pool2dOptions* options = pool2d->GetOptions();
-        if (options->layout != ml::InputOperandLayout::Nchw) {
+        if (options->layout != wnn::InputOperandLayout::Nchw) {
             return DAWN_INTERNAL_ERROR("Only support nchw input layout");
         }
         const OperandBase* inputOperand = pool2d->Inputs()[0].Get();
-        if (inputOperand->Type() != ml::OperandType::Float32) {
+        if (inputOperand->Type() != wnn::OperandType::Float32) {
             return DAWN_INTERNAL_ERROR("Only support float32 input");
         }
         size_t nchwcBlockSize = MlasNchwcGetBlockSize();
@@ -852,7 +852,7 @@ namespace webnn_native { namespace mlas {
                 paddingEndingHeight = options->padding[1],
                 paddingBeginningWidth = options->padding[2],
                 paddingEndingWidth = options->padding[3];
-        if (options->autoPad != ml::AutoPad::Explicit) {
+        if (options->autoPad != wnn::AutoPad::Explicit) {
             utils::ComputeImplicitPaddingForAutoPad(
                 options->autoPad, options->dilations[0], inputHeight, kernelShape[0],
                 options->strides[0], paddingBeginningHeight, paddingEndingHeight);
@@ -935,7 +935,7 @@ namespace webnn_native { namespace mlas {
             opType == op::UnaryOpType::kSigmoid || opType == op::UnaryOpType::kSoftmax ||
             opType == op::UnaryOpType::kTanh) {
             const OperandBase* inputOperand = unary->Inputs()[0].Get();
-            if (inputOperand->Type() != ml::OperandType::Float32) {
+            if (inputOperand->Type() != wnn::OperandType::Float32) {
                 return DAWN_INTERNAL_ERROR("Only support float32");
             }
             DAWN_ASSERT(mMemoryMap.find(inputOperand) != mMemoryMap.end());
@@ -978,17 +978,17 @@ namespace webnn_native { namespace mlas {
         return {};
     }
 
-    MLComputeGraphStatus Graph::ComputeImpl(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
-        for (auto& input : inputs->GetRecords()) {
-            Ref<Memory> inputMemory = mInputs.at(input.first);
-            if (inputMemory->GetByteLength() < input.second->resource.byteLength) {
+    WNNComputeGraphStatus Graph::ComputeImpl(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
+        for (auto& [name, input] : inputs->GetRecords()) {
+            Ref<Memory> inputMemory = mInputs.at(name);
+            auto& resource = input.resource.arrayBufferView;
+            if (inputMemory->GetByteLength() < resource.byteLength) {
                 dawn::ErrorLog() << "The size of input memory is less than input buffer.";
-                return MLComputeGraphStatus_Error;
+                return WNNComputeGraphStatus_Error;
             }
             memcpy(inputMemory->GetBuffer(),
-                   static_cast<int8_t*>(input.second->resource.buffer) +
-                       input.second->resource.byteOffset,
-                   input.second->resource.byteLength);
+                   static_cast<int8_t*>(resource.buffer) + resource.byteOffset,
+                   resource.byteLength);
         }
 
         for (auto& kernel : mKernels) {
@@ -996,22 +996,22 @@ namespace webnn_native { namespace mlas {
         }
 
         std::vector<std::string> outputNames;
-        for (auto& output : outputs->GetRecords()) {
-            outputNames.push_back(output.first);
+        for (auto& [name, _] : outputs->GetRecords()) {
+            outputNames.push_back(name);
         }
 
         for (size_t i = 0; i < outputNames.size(); ++i) {
             std::string outputName = outputNames[i];
             Ref<Memory> outputMemory = mOutputs.at(outputName);
-            const ArrayBufferView* output = outputs->GetRecords().at(outputName);
-            if (output->byteLength < outputMemory->GetByteLength()) {
+            const ArrayBufferView& output = outputs->GetRecords().at(outputName).arrayBufferView;
+            if (output.byteLength < outputMemory->GetByteLength()) {
                 dawn::ErrorLog() << "The size of output buffer is less than output memory.";
-                return MLComputeGraphStatus_Error;
+                return WNNComputeGraphStatus_Error;
             }
-            memcpy(static_cast<int8_t*>(output->buffer) + output->byteOffset,
-                   outputMemory->GetBuffer(), output->byteLength);
+            memcpy(static_cast<int8_t*>(output.buffer) + output.byteOffset,
+                   outputMemory->GetBuffer(), output.byteLength);
         }
-        return MLComputeGraphStatus_Success;
+        return WNNComputeGraphStatus_Success;
     }
 
-}}  // namespace webnn_native::mlas
+}  // namespace webnn_native::mlas

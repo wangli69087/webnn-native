@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
     namespace {
 
         //* Outputs an rvalue that's the number of elements a pointer member points to.
@@ -102,10 +102,10 @@ namespace webnn_wire { namespace client {
                     , {{as_annotated_cType(arg)}}
                 {%- endfor -%}
             ) {
+                auto self = reinterpret_cast<{{as_wireType(type)}}>(cSelf);
                 {% if len(method.arguments) > 0 %}
                     {
                         bool sameClient = true;
-                        auto self = reinterpret_cast<{{as_wireType(type)}}>(cSelf);
                         Client* client = self->client;
                         DAWN_UNUSED(client);
 
@@ -133,7 +133,6 @@ namespace webnn_wire { namespace client {
                                 // Allocate an object without registering it on the server. This is backed by a real allocation on
                                 // the client so commands can be sent with it. But because it's not allocated on the server, it will
                                 // be a fatal error to use it.
-                                auto self = reinterpret_cast<{{as_wireType(type)}}>(cSelf);
                                 auto* allocation = self->client->{{method.return_type.name.CamelCase()}}Allocator().New(self->client);
                                 return reinterpret_cast<{{as_cType(method.return_type.name)}}>(allocation->object.get());
                             {% elif method.return_type.name.canonical_case() == "void" %}
@@ -145,7 +144,6 @@ namespace webnn_wire { namespace client {
                     }
                 {% endif %}
 
-                auto self = reinterpret_cast<{{as_wireType(type)}}>(cSelf);
                 {% if Suffix not in client_handwritten_commands %}
                     {{Suffix}}Cmd cmd;
 
@@ -224,7 +222,7 @@ namespace webnn_wire { namespace client {
         return result;
     }
 
-    MLGraphBuilder ClientCreateGraphBuilder(MLContext context) {
+    WNNGraphBuilder ClientCreateGraphBuilder(WNNContext context) {
         auto self = reinterpret_cast<Context*>(context);
         CreateGraphBuilderCmd cmd;
 
@@ -235,25 +233,25 @@ namespace webnn_wire { namespace client {
 
         self->client->SerializeCommand(cmd);
 
-        return reinterpret_cast<MLGraphBuilder>(allocation->object.get());
+        return reinterpret_cast<WNNGraphBuilder>(allocation->object.get());
     }
 
-    MLNamedInputs ClientCreateNamedInputs() {
+    WNNNamedInputs ClientCreateNamedInputs() {
         UNREACHABLE();
         return nullptr;
     }
 
-    MLNamedOperands ClientCreateNamedOperands() {
+    WNNNamedOperands ClientCreateNamedOperands() {
         UNREACHABLE();
         return nullptr;
     }
 
-    MLNamedOutputs ClientCreateNamedOutputs() {
+    WNNNamedOutputs ClientCreateNamedOutputs() {
         UNREACHABLE();
         return nullptr;
     }
 
-    MLOperatorArray ClientCreateOperatorArray() {
+    WNNOperatorArray ClientCreateOperatorArray() {
         UNREACHABLE();
         return nullptr;
     }
@@ -273,4 +271,4 @@ namespace webnn_wire { namespace client {
     const WebnnProcTable& GetProcs() {
         return gProcTable;
     }
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client

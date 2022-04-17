@@ -17,19 +17,25 @@
 
 #include "webnn_native/Context.h"
 #include "webnn_native/Graph.h"
-#include "webnn_native/dml/deps/src/precomp.h"
 
-namespace webnn_native { namespace dml {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+#    include <webgpu/webgpu.h>
+#endif
+
+namespace webnn_native::dml {
 
     class Context : public ContextBase {
       public:
         explicit Context(ContextOptions const* options);
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        explicit Context(WGPUDevice device);
+#endif
         ~Context() override = default;
 
       private:
         GraphBase* CreateGraphImpl() override;
     };
 
-}}  // namespace webnn_native::dml
+}  // namespace webnn_native::dml
 
 #endif  // WEBNN_NATIVE_DML_CONTEXT_DML_H_

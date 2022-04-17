@@ -14,13 +14,13 @@
 
 #include "ops/Conv2d.h"
 
-namespace node { namespace op {
+namespace node::op {
 
     template <typename T>
     Napi::Value GetConv2dBaseOptions(const Napi::CallbackInfo& info,
                                      std::vector<napi_value>& args,
-                                     ml::Operand& input,
-                                     ml::Operand& filter,
+                                     wnn::Operand& input,
+                                     wnn::Operand& filter,
                                      T& options,
                                      Napi::Object& jsOptions) {
         // Operand conv2d(Operand input, Operand filter, optional Conv2dOptions options = {});
@@ -70,10 +70,10 @@ namespace node { namespace op {
         return {};
     }
 
-    Napi::Value Conv2d::Build(const Napi::CallbackInfo& info, ml::GraphBuilder builder) {
+    Napi::Value Conv2d::Build(const Napi::CallbackInfo& info, wnn::GraphBuilder builder) {
         std::vector<napi_value> args;
-        ml::Operand input;
-        ml::Operand filter;
+        wnn::Operand input;
+        wnn::Operand filter;
         Conv2dOptions options;
         Napi::Object jsOptions;
 
@@ -92,10 +92,10 @@ namespace node { namespace op {
         return object;
     }
 
-    Napi::Value ConvTranspose2d::Build(const Napi::CallbackInfo& info, ml::GraphBuilder builder) {
+    Napi::Value ConvTranspose2d::Build(const Napi::CallbackInfo& info, wnn::GraphBuilder builder) {
         std::vector<napi_value> args;
-        ml::Operand input;
-        ml::Operand filter;
+        wnn::Operand input;
+        wnn::Operand filter;
         ConvTranspose2dOptions options;
         Napi::Object jsOptions;
 
@@ -123,4 +123,4 @@ namespace node { namespace op {
         return object;
     }
 
-}}  // namespace node::op
+}  // namespace node::op

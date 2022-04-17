@@ -24,7 +24,6 @@
 #include "webnn_native/Operand.h"
 #include "webnn_native/Operator.h"
 #include "webnn_native/dml/ContextDML.h"
-#include "webnn_native/dml/deps/src/precomp.h"
 #include "webnn_native/ops/BatchNorm.h"
 #include "webnn_native/ops/Binary.h"
 #include "webnn_native/ops/Clamp.h"
@@ -47,7 +46,25 @@
 #include "webnn_native/ops/Transpose.h"
 #include "webnn_native/ops/Unary.h"
 
-namespace webnn_native { namespace dml {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+// Support DirectMLX
+#    include <initguid.h>
+#    include <wrl/client.h>
+#    include <wrl/implements.h>
+
+#    include <Windows.h>
+#    include <d3d12.h>
+
+#    define DML_TARGET_VERSION_USE_LATEST 1
+#    include <DirectML.h>
+#    include "DirectMLX.h"
+
+#    include "dawn/native/dml/deps/src/dmldevice.h"
+#else
+#    include "webnn_native/dml/deps/src/precomp.h"
+#endif
+
+namespace webnn_native::dml {
 
     std::string DmlTensorDimensionsToString(const ::dml::TensorDimensions&);
     std::string DmlTensorDataTypeToString(DML_TENSOR_DATA_TYPE type);
@@ -59,7 +76,7 @@ namespace webnn_native { namespace dml {
 
         virtual MaybeError AddConstant(const op::Constant* constant) override;
         virtual MaybeError AddInput(const op::Input* input) override;
-        virtual MaybeError AddOutput(const std::string& name, const OperandBase* output) override;
+        virtual MaybeError AddOutput(std::string_view name, const OperandBase* output) override;
         virtual MaybeError AddBatchNorm(const op::BatchNorm* batchNorm) override;
         virtual MaybeError AddBinary(const op::Binary* binary) override;
         virtual MaybeError AddConv2d(const op::Conv2d* conv2d) override;
@@ -83,13 +100,18 @@ namespace webnn_native { namespace dml {
 
       private:
         MaybeError CompileImpl() override;
-        MLComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
-                                         NamedOutputsBase* outputs) override;
+        WNNComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
+                                          NamedOutputsBase* outputs) override;
 
         ::dml::Expression BindingConstant(DML_TENSOR_DATA_TYPE dmlTensorType,
                                           ::dml::TensorDimensions dmlTensorDims,
                                           void const* value,
-                                          size_t size);
+                                          size_t size
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+                                          ,
+                                          WGPUBuffer wgpuBuffer = nullptr
+#endif
+        );
         ::dml::Expression HardSwish(::dml::Expression& input);
         ::dml::Expression EmulateFusedActivation(FusionOperatorBase* activation,
                                                  ::dml::Expression& input);
@@ -99,14 +121,17 @@ namespace webnn_native { namespace dml {
         std::mutex mMutex;
         std::unique_ptr<::dml::Graph> mGraph;
         std::map<const OperandBase*, ::dml::Expression> mExpression;
-        std::vector<std::unique_ptr<::pydml::Binding>> mBindings;
+        std::vector<std::unique_ptr<::pydml::Binding>> mInputBindings;
+        std::map<std::string, ::pydml::Binding*> mInputBindingMap;
         std::vector<std::unique_ptr<char>> mConstantBuffers;
         std::unordered_set<const OperandBase*> mConstantSet;
-        std::map<std::string, ::pydml::Binding*> mInputs;
-        std::map<std::string, ::dml::Expression> mOutputs;
+        std::vector<Ref<OperandBase>> mConstants;
+        std::map<std::string, ::dml::Expression> mOutputExpressionMap;
+        std::vector<std::unique_ptr<::pydml::Binding>> mOutputBindings;
+        std::map<std::string, ::pydml::Binding*> mOutputBindingMap;
         std::unique_ptr<pydml::CompiledModel> mCompiledModel;
     };
 
-}}  // namespace webnn_native::dml
+}  // namespace webnn_native::dml
 
 #endif  // WEBNN_NATIVE_DML_MODEL_DML_H_

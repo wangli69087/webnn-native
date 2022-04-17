@@ -22,6 +22,23 @@
 
 namespace webnn_native {
 
+    namespace {
+        class ErrorGraph final : public GraphBase {
+          public:
+            ErrorGraph(ContextBase* context) : GraphBase(context, ObjectBase::kError) {
+            }
+
+          private:
+            MaybeError CompileImpl() override {
+                UNREACHABLE();
+            }
+            WNNComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
+                                              NamedOutputsBase* outputs) override {
+                return WNNComputeGraphStatus_Error;
+            }
+        };
+    }  // namespace
+
     GraphBase::GraphBase(ContextBase* context) : ObjectBase(context) {
     }
 
@@ -33,7 +50,7 @@ namespace webnn_native {
         return DAWN_UNIMPLEMENTED_ERROR("AddInput");
     }
 
-    MaybeError GraphBase::AddOutput(const std::string& name, const OperandBase* output) {
+    MaybeError GraphBase::AddOutput(std::string_view name, const OperandBase* output) {
         return DAWN_UNIMPLEMENTED_ERROR("AddOutput");
     }
 
@@ -93,10 +110,6 @@ namespace webnn_native {
         return DAWN_UNIMPLEMENTED_ERROR("AddUnary");
     }
 
-    MaybeError GraphBase::AddLeakyRelu(const op::LeakyRelu* leakyRelu) {
-        return DAWN_UNIMPLEMENTED_ERROR("AddLeakyRelu");
-    }
-
     MaybeError GraphBase::AddConcat(const op::Concat* concat) {
         return DAWN_UNIMPLEMENTED_ERROR("AddConcat");
     }
@@ -110,7 +123,7 @@ namespace webnn_native {
     }
 
     MaybeError GraphBase::AddPad(const op::Pad* pad) {
-        UNREACHABLE();
+        return DAWN_UNIMPLEMENTED_ERROR("AddPad");
     }
 
     MaybeError GraphBase::AddInstanceNorm(const op::InstanceNorm* instanceNorm) {
@@ -118,19 +131,43 @@ namespace webnn_native {
     }
 
     MaybeError GraphBase::Finish() {
-        UNREACHABLE();
+        return DAWN_UNIMPLEMENTED_ERROR("Finish");
     }
 
     MaybeError GraphBase::Compile() {
         return CompileImpl();
     }
 
-    MLComputeGraphStatus GraphBase::Compute(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
+    WNNComputeGraphStatus GraphBase::Compute(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
         if (inputs == nullptr || outputs == nullptr) {
-            return MLComputeGraphStatus_Error;
+            return WNNComputeGraphStatus_Error;
         }
 
         return ComputeImpl(inputs, outputs);
+    }
+
+    void GraphBase::ComputeAsync(NamedInputsBase* inputs,
+                                 NamedOutputsBase* outputs,
+                                 WNNComputeAsyncCallback callback,
+                                 void* userdata) {
+        if (inputs == nullptr || outputs == nullptr) {
+            callback(WNNComputeGraphStatus_Error, "named inputs or outputs is empty.", userdata);
+        }
+        // TODO: Get error message from implemenation, ComputeImpl should return MaybeError,
+        // which is tracked with issues-959.
+        WNNComputeGraphStatus status = ComputeImpl(inputs, outputs);
+        std::string messages = status != WNNComputeGraphStatus_Success ? "Failed to async compute"
+                                                                       : "Success async compute";
+        callback(status, messages.c_str(), userdata);
+    }
+
+    GraphBase::GraphBase(ContextBase* context, ObjectBase::ErrorTag tag)
+        : ObjectBase(context, tag) {
+    }
+
+    // static
+    GraphBase* GraphBase::MakeError(ContextBase* context) {
+        return new ErrorGraph(context);
     }
 
 }  // namespace webnn_native

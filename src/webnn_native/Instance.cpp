@@ -18,6 +18,7 @@
 #include "common/Assert.h"
 #include "common/Log.h"
 #include "webnn_native/ErrorData.h"
+#include "webnn_native/GraphBuilder.h"
 #include "webnn_native/NamedInputs.h"
 #include "webnn_native/NamedOperands.h"
 #include "webnn_native/NamedOutputs.h"
@@ -58,19 +59,19 @@ namespace webnn_native {
         BackendsBitset GetEnabledBackends() {
             BackendsBitset enabledBackends;
 #if defined(WEBNN_ENABLE_BACKEND_NULL)
-            enabledBackends.set(ml::BackendType::Null);
+            enabledBackends.set(wnn::BackendType::Null);
 #endif  // defined(WEBNN_ENABLE_BACKEND_NULL)
 #if defined(WEBNN_ENABLE_BACKEND_DML)
-            enabledBackends.set(ml::BackendType::DirectML);
+            enabledBackends.set(wnn::BackendType::DirectML);
 #endif  // defined(WEBNN_ENABLE_BACKEND_DML)
 #if defined(WEBNN_ENABLE_BACKEND_OPENVINO)
-            enabledBackends.set(ml::BackendType::OpenVINO);
+            enabledBackends.set(wnn::BackendType::OpenVINO);
 #endif  // defined(WEBNN_ENABLE_BACKEND_OPENVINO)
 #if defined(WEBNN_ENABLE_BACKEND_ONEDNN)
-            enabledBackends.set(ml::BackendType::OneDNN);
+            enabledBackends.set(wnn::BackendType::OneDNN);
 #endif  // defined(WEBNN_ENABLE_BACKEND_ONEDNN)
 #if defined(WEBNN_ENABLE_BACKEND_MLAS)
-            enabledBackends.set(ml::BackendType::MLAS);
+            enabledBackends.set(wnn::BackendType::MLAS);
 #endif  // defined(WEBNN_ENABLE_BACKEND_MLAS)
             return enabledBackends;
         }
@@ -89,14 +90,14 @@ namespace webnn_native {
     }
 
     bool InstanceBase::Initialize(const InstanceDescriptor*) {
-        for (ml::BackendType b : IterateBitSet(GetEnabledBackends())) {
+        for (wnn::BackendType b : IterateBitSet(GetEnabledBackends())) {
             ConnectBackend(b);
         }
         return true;
     }
 
-    void InstanceBase::ConnectBackend(ml::BackendType backendType) {
-        auto Register = [this](BackendConnection* connection, ml::BackendType expectedType) {
+    void InstanceBase::ConnectBackend(wnn::BackendType backendType) {
+        auto Register = [this](BackendConnection* connection, wnn::BackendType expectedType) {
             if (connection != nullptr) {
                 ASSERT(connection->GetType() == expectedType);
                 ASSERT(connection->GetInstance() == this);
@@ -107,32 +108,32 @@ namespace webnn_native {
 
         switch (backendType) {
 #if defined(WEBNN_ENABLE_BACKEND_NULL)
-            case ml::BackendType::Null:
-                Register(null::Connect(this), ml::BackendType::Null);
+            case wnn::BackendType::Null:
+                Register(null::Connect(this), wnn::BackendType::Null);
                 break;
 #endif  // defined(WEBNN_ENABLE_BACKEND_NULL)
 
 #if defined(WEBNN_ENABLE_BACKEND_DML)
-            case ml::BackendType::DirectML:
-                Register(dml::Connect(this), ml::BackendType::DirectML);
+            case wnn::BackendType::DirectML:
+                Register(dml::Connect(this), wnn::BackendType::DirectML);
                 break;
 #endif  // defined(WEBNN_ENABLE_BACKEND_DML)
 
 #if defined(WEBNN_ENABLE_BACKEND_OPENVINO)
-            case ml::BackendType::OpenVINO:
-                Register(ie::Connect(this), ml::BackendType::OpenVINO);
+            case wnn::BackendType::OpenVINO:
+                Register(ie::Connect(this), wnn::BackendType::OpenVINO);
                 break;
 #endif  // defined(WEBNN_ENABLE_BACKEND_OPENVINO)
 
 #if defined(WEBNN_ENABLE_BACKEND_ONEDNN)
-            case ml::BackendType::OneDNN:
-                Register(onednn::Connect(this), ml::BackendType::OneDNN);
+            case wnn::BackendType::OneDNN:
+                Register(onednn::Connect(this), wnn::BackendType::OneDNN);
                 break;
 #endif  // defined(WEBNN_ENABLE_BACKEND_ONEDNN)
 
 #if defined(WEBNN_ENABLE_BACKEND_MLAS)
-            case ml::BackendType::MLAS:
-                Register(mlas::Connect(this), ml::BackendType::MLAS);
+            case wnn::BackendType::MLAS:
+                Register(mlas::Connect(this), wnn::BackendType::MLAS);
                 break;
 #endif  // defined(WEBNN_ENABLE_BACKEND_MLAS)
 
@@ -142,22 +143,43 @@ namespace webnn_native {
     }
 
     ContextBase* InstanceBase::CreateTestContext(const ContextOptions* options) {
-        ASSERT(mBackends.find(ml::BackendType::Null) != mBackends.end());
-        return mBackends[ml::BackendType::Null]->CreateContext(options);
+        ASSERT(mBackends.find(wnn::BackendType::Null) != mBackends.end());
+        return mBackends[wnn::BackendType::Null]->CreateContext(options);
     }
 
     ContextBase* InstanceBase::CreateContext(const ContextOptions* options) {
-        if (mBackends.find(ml::BackendType::DirectML) != mBackends.end()) {
-            return mBackends[ml::BackendType::DirectML]->CreateContext(options);
-        } else if (mBackends.find(ml::BackendType::OpenVINO) != mBackends.end()) {
-            return mBackends[ml::BackendType::OpenVINO]->CreateContext(options);
-        } else if (mBackends.find(ml::BackendType::OneDNN) != mBackends.end()) {
-            return mBackends[ml::BackendType::OneDNN]->CreateContext(options);
-        } else if (mBackends.find(ml::BackendType::MLAS) != mBackends.end()) {
-            return mBackends[ml::BackendType::MLAS]->CreateContext(options);
+        if (mBackends.find(wnn::BackendType::DirectML) != mBackends.end()) {
+            return mBackends[wnn::BackendType::DirectML]->CreateContext(options);
+        } else if (mBackends.find(wnn::BackendType::OpenVINO) != mBackends.end()) {
+            return mBackends[wnn::BackendType::OpenVINO]->CreateContext(options);
+        } else if (mBackends.find(wnn::BackendType::OneDNN) != mBackends.end()) {
+            return mBackends[wnn::BackendType::OneDNN]->CreateContext(options);
+        } else if (mBackends.find(wnn::BackendType::MLAS) != mBackends.end()) {
+            return mBackends[wnn::BackendType::MLAS]->CreateContext(options);
         }
         UNREACHABLE();
         return nullptr;
+    }
+
+    ContextBase* InstanceBase::CreateContextWithGpuDevice(const GpuDevice* wnn_device) {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        WGPUDevice device = reinterpret_cast<WGPUDevice>(wnn_device->device);
+        if (mBackends.find(wnn::BackendType::DirectML) != mBackends.end()) {
+            return mBackends[wnn::BackendType::DirectML]->CreateContextWithGpuDevice(device);
+        } else if (mBackends.find(wnn::BackendType::OpenVINO) != mBackends.end()) {
+            return mBackends[wnn::BackendType::OpenVINO]->CreateContextWithGpuDevice(device);
+        } else if (mBackends.find(wnn::BackendType::OneDNN) != mBackends.end()) {
+            return mBackends[wnn::BackendType::OneDNN]->CreateContextWithGpuDevice(device);
+        } else if (mBackends.find(wnn::BackendType::MLAS) != mBackends.end()) {
+            return mBackends[wnn::BackendType::MLAS]->CreateContextWithGpuDevice(device);
+        }
+        UNREACHABLE();
+#endif
+        return nullptr;
+    }
+
+    GraphBuilderBase* InstanceBase::CreateGraphBuilder(ContextBase* context) {
+        return new GraphBuilderBase(context);
     }
 
     NamedInputsBase* InstanceBase::CreateNamedInputs() {
@@ -170,6 +192,10 @@ namespace webnn_native {
 
     NamedOutputsBase* InstanceBase::CreateNamedOutputs() {
         return new NamedOutputsBase();
+    }
+
+    OperatorArrayBase* InstanceBase::CreateOperatorArray() {
+        return new OperatorArrayBase();
     }
 
     bool InstanceBase::ConsumedError(MaybeError maybeError) {

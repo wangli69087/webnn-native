@@ -15,11 +15,11 @@
 
 #include "webnn_wire/client/Client.h"
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
     bool Client::DoContextPopErrorScopeCallback(Context* context,
                                                 uint64_t requestSerial,
-                                                MLErrorType errorType,
+                                                WNNErrorType errorType,
                                                 const char* message) {
         if (context == nullptr) {
             // The device might have been deleted or recreated so this isn't an error.
@@ -36,4 +36,11 @@ namespace webnn_wire { namespace client {
         return namedOutputs->OutputResult(name, buffer, byteLength, byteOffset);
     }
 
-}}  // namespace webnn_wire::client
+    bool Client::DoGraphComputeAsyncCallback(Graph* graph,
+                                             uint64_t requestSerial,
+                                             WNNComputeGraphStatus status,
+                                             const char* message) {
+        return graph->OnComputeAsyncCallback(requestSerial, status, message);
+    }
+
+}  // namespace webnn_wire::client

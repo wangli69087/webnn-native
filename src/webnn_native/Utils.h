@@ -18,14 +18,14 @@
 #include <webnn/webnn_cpp.h>
 #include <vector>
 
-namespace webnn_native { namespace utils {
-    void ComputeImplicitPaddingForAutoPad(ml::AutoPad autoPad,
+namespace webnn_native::utils {
+    void ComputeImplicitPaddingForAutoPad(wnn::AutoPad autoPad,
                                           int32_t dilation,
                                           int32_t inputSize,
                                           int32_t filterSize,
                                           int32_t stride,
                                           int32_t& paddingBegin,
                                           int32_t& paddingEnd);
-}}  // namespace webnn_native::utils
+}  // namespace webnn_native::utils
 
 #endif  // WEBNN_NATIVE_OPERATOR_H_

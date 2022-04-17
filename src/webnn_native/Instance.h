@@ -19,6 +19,8 @@
 #include "common/RefCounted.h"
 #include "common/ityp_bitset.h"
 #include "webnn_native/BackendConnection.h"
+#include "webnn_native/FusionOperator.h"
+#include "webnn_native/OperatorArray.h"
 #include "webnn_native/webnn_platform.h"
 
 #include <array>
@@ -28,7 +30,7 @@
 
 namespace webnn_native {
 
-    using BackendsBitset = ityp::bitset<ml::BackendType, kEnumCount<ml::BackendType>>;
+    using BackendsBitset = ityp::bitset<wnn::BackendType, kEnumCount<wnn::BackendType>>;
 
     // This is called InstanceBase for consistency across the frontend, even if the backends don't
     // specialize this class.
@@ -38,9 +40,12 @@ namespace webnn_native {
 
         // WebNN API
         ContextBase* CreateContext(const ContextOptions* options);
+        ContextBase* CreateContextWithGpuDevice(const GpuDevice* device);
+        GraphBuilderBase* CreateGraphBuilder(ContextBase* context);
         NamedInputsBase* CreateNamedInputs();
         NamedOperandsBase* CreateNamedOperands();
         NamedOutputsBase* CreateNamedOutputs();
+        OperatorArrayBase* CreateOperatorArray();
 
         ContextBase* CreateTestContext(const ContextOptions* options);
 
@@ -56,9 +61,9 @@ namespace webnn_native {
 
         bool Initialize(const InstanceDescriptor* descriptor);
 
-        void ConnectBackend(ml::BackendType backendType);
+        void ConnectBackend(wnn::BackendType backendType);
 
-        std::map<ml::BackendType, std::unique_ptr<BackendConnection>> mBackends;
+        std::map<wnn::BackendType, std::unique_ptr<BackendConnection>> mBackends;
     };
 
 }  // namespace webnn_native

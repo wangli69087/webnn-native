@@ -17,7 +17,7 @@
 
 #include "common/Compiler.h"
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
     namespace {
 
@@ -85,7 +85,7 @@ namespace webnn_wire { namespace client {
         return result;
     }
 
-    ReservedNamedInputs Client::ReserveNamedInputs(MLContext context) {
+    ReservedNamedInputs Client::ReserveNamedInputs(WNNContext context) {
         auto* allocation = NamedInputsAllocator().New(this);
 
         ReservedNamedInputs result;
@@ -133,4 +133,4 @@ namespace webnn_wire { namespace client {
         return mDisconnected;
     }
 
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client

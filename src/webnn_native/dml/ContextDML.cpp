@@ -17,13 +17,18 @@
 #include "common/RefCounted.h"
 #include "webnn_native/dml/GraphDML.h"
 
-namespace webnn_native { namespace dml {
+namespace webnn_native::dml {
 
     Context::Context(ContextOptions const* options) : ContextBase(options) {
     }
+
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+    Context::Context(WGPUDevice device) : ContextBase(device) {
+    }
+#endif
 
     GraphBase* Context::CreateGraphImpl() {
         return new Graph(this);
     }
 
-}}  // namespace webnn_native::dml
+}  // namespace webnn_native::dml

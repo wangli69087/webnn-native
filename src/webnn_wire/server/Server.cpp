@@ -16,7 +16,7 @@
 #include "webnn_wire/server/Server.h"
 #include "webnn_wire/WireServer.h"
 
-namespace webnn_wire { namespace server {
+namespace webnn_wire::server {
 
     Server::Server(const WebnnProcTable& procs, CommandSerializer* serializer)
         : mSerializer(serializer), mProcs(procs), mIsAlive(std::make_shared<bool>(true)) {
@@ -25,22 +25,22 @@ namespace webnn_wire { namespace server {
     Server::~Server() {
         // Un-set the error and lost callbacks since we cannot forward them
         // after the server has been destroyed.
-        for (MLContext context : ContextObjects().GetAllHandles()) {
+        for (WNNContext context : ContextObjects().GetAllHandles()) {
             ClearContextCallbacks(context);
         }
         DestroyAllObjects(mProcs);
     }
 
-    void Server::ClearContextCallbacks(MLContext context) {
+    void Server::ClearContextCallbacks(WNNContext context) {
         // Un-set the error and lost callbacks since we cannot forward them
         // after the server has been destroyed.
         mProcs.contextSetUncapturedErrorCallback(context, nullptr, nullptr);
         // mProcs.contextSetContextLostCallback(context, nullptr, nullptr);
     }
 
-    bool Server::InjectInstance(MLInstance instance, uint32_t id, uint32_t generation) {
+    bool Server::InjectInstance(WNNInstance instance, uint32_t id, uint32_t generation) {
         ASSERT(instance != nullptr);
-        ObjectData<MLInstance>* data = InstanceObjects().Allocate(id);
+        ObjectData<WNNInstance>* data = InstanceObjects().Allocate(id);
         if (data == nullptr) {
             return false;
         }
@@ -53,9 +53,16 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
-    bool Server::InjectContext(MLContext context, uint32_t id, uint32_t generation) {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+    bool Server::InjectDawnWireServer(dawn_wire::WireServer* dawn_wire_server) {
+        mDawnWireServer = dawn_wire_server;
+        return true;
+    }
+#endif
+
+    bool Server::InjectContext(WNNContext context, uint32_t id, uint32_t generation) {
         ASSERT(context != nullptr);
-        ObjectData<MLContext>* data = ContextObjects().Allocate(id);
+        ObjectData<WNNContext>* data = ContextObjects().Allocate(id);
         if (data == nullptr) {
             return false;
         }
@@ -77,7 +84,7 @@ namespace webnn_wire { namespace server {
         // inside them.
         // mProcs.contextSetUncapturedErrorCallback(
         //     context,
-        //     [](MLErrorType type, const char* message, void* userdata) {
+        //     [](WNNErrorType type, const char* message, void* userdata) {
         //         ContextInfo* info = static_cast<ContextInfo*>(userdata);
         //         info->server->OnUncapturedError(info->self, type, message);
         //     },
@@ -86,17 +93,17 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
-    bool Server::InjectNamedInputs(MLNamedInputs namedInputs,
+    bool Server::InjectNamedInputs(WNNNamedInputs namedInputs,
                                    uint32_t id,
                                    uint32_t generation,
                                    uint32_t contextId,
                                    uint32_t contextGeneration) {
         ASSERT(namedInputs != nullptr);
-        // ObjectData<MLContext>* context = ContextObjects().Get(contextId);
+        // ObjectData<WNNContext>* context = ContextObjects().Get(contextId);
         // if (context == nullptr || context->generation != contextGeneration) {
         //     return false;
         // }
-        ObjectData<MLNamedInputs>* data = NamedInputsObjects().Allocate(id);
+        ObjectData<WNNNamedInputs>* data = NamedInputsObjects().Allocate(id);
         if (data == nullptr) {
             return false;
         }
@@ -117,11 +124,11 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
-    bool Server::InjectNamedOperands(MLNamedOperands namedOperands,
+    bool Server::InjectNamedOperands(WNNNamedOperands namedOperands,
                                      uint32_t id,
                                      uint32_t generation) {
         ASSERT(namedOperands != nullptr);
-        ObjectData<MLNamedOperands>* data = NamedOperandsObjects().Allocate(id);
+        ObjectData<WNNNamedOperands>* data = NamedOperandsObjects().Allocate(id);
         if (data == nullptr) {
             return false;
         }
@@ -134,9 +141,11 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
-    bool Server::InjectNamedOutputs(MLNamedOutputs namedOutputs, uint32_t id, uint32_t generation) {
+    bool Server::InjectNamedOutputs(WNNNamedOutputs namedOutputs,
+                                    uint32_t id,
+                                    uint32_t generation) {
         ASSERT(namedOutputs != nullptr);
-        ObjectData<MLNamedOutputs>* data = NamedOutputsObjects().Allocate(id);
+        ObjectData<WNNNamedOutputs>* data = NamedOutputsObjects().Allocate(id);
         if (data == nullptr) {
             return false;
         }
@@ -171,6 +180,16 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+    WGPUDevice Server::GetWGPUDevice(uint32_t id, uint32_t generation) {
+        return mDawnWireServer->GetDevice(id, generation);
+    }
+
+    WGPUBuffer Server::GetWGPUBuffer(uint32_t id, uint32_t generation) {
+        return mDawnWireServer->GetBuffer(id, generation);
+    }
+#endif
+
     bool TrackContextChild(ContextInfo* info, ObjectType type, ObjectId id) {
         auto it = info->childObjectTypesAndIds.insert(PackObjectTypeAndId(type, id));
         if (!it.second) {
@@ -191,4 +210,4 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
-}}  // namespace webnn_wire::server
+}  // namespace webnn_wire::server

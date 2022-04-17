@@ -28,17 +28,21 @@ namespace webnn_native {
     // backend.
     class BackendConnection {
       public:
-        BackendConnection(InstanceBase* instance, ml::BackendType type);
+        BackendConnection(InstanceBase* instance, wnn::BackendType type);
         virtual ~BackendConnection() = default;
 
-        ml::BackendType GetType() const;
+        wnn::BackendType GetType() const;
         InstanceBase* GetInstance() const;
 
         virtual ContextBase* CreateContext(ContextOptions const* options = nullptr) = 0;
 
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        virtual ContextBase* CreateContextWithGpuDevice(WGPUDevice device) = 0;
+#endif
+
       private:
         InstanceBase* mInstance = nullptr;
-        ml::BackendType mType;
+        wnn::BackendType mType;
     };
 
 }  // namespace webnn_native

@@ -19,12 +19,20 @@
 #include "webnn_native/Graph.h"
 #include "webnn_native/GraphBuilder.h"
 
-namespace webnn_native { namespace null {
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+#    include <webgpu/webgpu.h>
+#endif
+
+namespace webnn_native::null {
 
     // Context
     class Context : public ContextBase {
       public:
         explicit Context(ContextOptions const* options);
+
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        explicit Context(WGPUDevice device);
+#endif
         ~Context() override = default;
 
       private:
@@ -45,26 +53,33 @@ namespace webnn_native { namespace null {
         ~Graph() override = default;
         virtual MaybeError AddConstant(const op::Constant* constant) override;
         virtual MaybeError AddInput(const op::Input* input) override;
-        virtual MaybeError AddOutput(const std::string& name, const OperandBase* ouput) override;
+        virtual MaybeError AddOutput(std::string_view name, const OperandBase* ouput) override;
         virtual MaybeError AddBinary(const op::Binary* binary) override;
         virtual MaybeError AddConv2d(const op::Conv2d* conv2d) override;
+        virtual MaybeError AddGru(const op::Gru* gru) override;
+        virtual MaybeError AddPad(const op::Pad* pad) override;
         virtual MaybeError AddPool2d(const op::Pool2d* pool2d) override;
+        virtual MaybeError AddReduce(const op::Reduce* reduce) override;
+        virtual MaybeError AddResample2d(const op::Resample2d* resample2d) override;
         virtual MaybeError AddReshape(const op::Reshape* relu) override;
+        virtual MaybeError AddSqueeze(const op::Squeeze* squeeze) override;
+        virtual MaybeError AddSlice(const op::Slice* slice) override;
+        virtual MaybeError AddSplit(const op::Split* split) override;
         virtual MaybeError AddTranspose(const op::Transpose* transpose) override;
         virtual MaybeError AddUnary(const op::Unary* unary) override;
         virtual MaybeError AddBatchNorm(const op::BatchNorm* batchNorm) override;
-        virtual MaybeError AddLeakyRelu(const op::LeakyRelu* unary) override;
         virtual MaybeError AddConcat(const op::Concat* concat) override;
         virtual MaybeError AddGemm(const op::Gemm* gemm) override;
         virtual MaybeError AddClamp(const op::Clamp* clamp) override;
+        virtual MaybeError AddInstanceNorm(const op::InstanceNorm* instanceNorm) override;
         virtual MaybeError Finish() override;
 
       private:
         MaybeError CompileImpl() override;
-        MLComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
-                                         NamedOutputsBase* outputs) override;
+        WNNComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
+                                          NamedOutputsBase* outputs) override;
     };
 
-}}  // namespace webnn_native::null
+}  // namespace webnn_native::null
 
 #endif  // WEBNN_NATIVE_NULL_CONTEXT_NULL_H_

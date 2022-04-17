@@ -47,7 +47,7 @@
 #include "webnn_native/ops/Transpose.h"
 #include "webnn_native/ops/Unary.h"
 
-namespace webnn_native { namespace ie {
+namespace webnn_native::ie {
 
     class Graph : public GraphBase {
       public:
@@ -56,7 +56,7 @@ namespace webnn_native { namespace ie {
 
         virtual MaybeError AddConstant(const op::Constant* constant) override;
         virtual MaybeError AddInput(const op::Input* input) override;
-        virtual MaybeError AddOutput(const std::string& name, const OperandBase* ouput) override;
+        virtual MaybeError AddOutput(std::string_view name, const OperandBase* ouput) override;
         virtual MaybeError AddBatchNorm(const op::BatchNorm* batchNorm) override;
         virtual MaybeError AddBinary(const op::Binary* binary) override;
         virtual MaybeError AddClamp(const op::Clamp* clamp) override;
@@ -80,8 +80,8 @@ namespace webnn_native { namespace ie {
 
       private:
         MaybeError CompileImpl() override;
-        MLComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
-                                         NamedOutputsBase* outputs) override;
+        WNNComputeGraphStatus ComputeImpl(NamedInputsBase* inputs,
+                                          NamedOutputsBase* outputs) override;
 
         // Map the input name to IE internal input number.
         std::map<std::string, size_t> mInputIdMap;
@@ -103,6 +103,6 @@ namespace webnn_native { namespace ie {
         ie_infer_request_t* mInferEngineRequest;
     };
 
-}}  // namespace webnn_native::ie
+}  // namespace webnn_native::ie
 
 #endif  // WEBNN_NATIVE_IE_MODEL_IE_H_

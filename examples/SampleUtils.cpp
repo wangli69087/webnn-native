@@ -50,17 +50,17 @@ static webnn_wire::WireClient* wireClient = nullptr;
 static utils::TerribleCommandBuffer* c2sBuf = nullptr;
 static utils::TerribleCommandBuffer* s2cBuf = nullptr;
 
-static ml::Instance clientInstance;
+static wnn::Instance clientInstance;
 static std::unique_ptr<webnn_native::Instance> nativeInstance;
-ml::Context CreateCppContext(ml::ContextOptions const* options) {
+wnn::Context CreateCppContext(wnn::ContextOptions const* options) {
     nativeInstance = std::make_unique<webnn_native::Instance>();
     WebnnProcTable backendProcs = webnn_native::GetProcs();
-    MLContext backendContext = nativeInstance->CreateContext(options);
+    WNNContext backendContext = nativeInstance->CreateContext(options);
     if (backendContext == nullptr) {
-        return ml::Context();
+        return wnn::Context();
     }
     // Choose whether to use the backend procs and context directly, or set up the wire.
-    MLContext context = nullptr;
+    WNNContext context = nullptr;
     WebnnProcTable procs;
 
     switch (cmdBufType) {
@@ -100,14 +100,17 @@ ml::Context CreateCppContext(ml::ContextOptions const* options) {
                                        instanceReservation.generation);
             // Keep the reference instread of using Acquire.
             // TODO:: make the instance in the client as singleton object.
-            clientInstance = ml::Instance(instanceReservation.instance);
+            clientInstance = wnn::Instance(instanceReservation.instance);
             return clientInstance.CreateContext(options);
 #endif
-        } break;
+        }
+        default:
+            dawn::ErrorLog() << "Invaild CmdBufType";
+            DAWN_ASSERT(0);
     }
     webnnProcSetProcs(&procs);
 
-    return ml::Context::Acquire(context);
+    return wnn::Context::Acquire(context);
 }
 
 void DoFlush() {
@@ -119,27 +122,35 @@ void DoFlush() {
     }
 }
 
-ml::NamedInputs CreateCppNamedInputs() {
+wnn::NamedInputs CreateCppNamedInputs() {
 #if defined(WEBNN_ENABLE_WIRE)
     return clientInstance.CreateNamedInputs();
 #else
-    return ml::CreateNamedInputs();
+    return wnn::CreateNamedInputs();
 #endif  // defined(WEBNN_ENABLE_WIRE)
 }
 
-ml::NamedOperands CreateCppNamedOperands() {
+wnn::NamedOperands CreateCppNamedOperands() {
 #if defined(WEBNN_ENABLE_WIRE)
     return clientInstance.CreateNamedOperands();
 #else
-    return ml::CreateNamedOperands();
+    return wnn::CreateNamedOperands();
 #endif  // defined(WEBNN_ENABLE_WIRE)
 }
 
-ml::NamedOutputs CreateCppNamedOutputs() {
+wnn::NamedOutputs CreateCppNamedOutputs() {
 #if defined(WEBNN_ENABLE_WIRE)
     return clientInstance.CreateNamedOutputs();
 #else
-    return ml::CreateNamedOutputs();
+    return wnn::CreateNamedOutputs();
+#endif  // defined(WEBNN_ENABLE_WIRE)
+}
+
+wnn::OperatorArray CreateCppOperatorArray() {
+#if defined(WEBNN_ENABLE_WIRE)
+    return clientInstance.CreateOperatorArray();
+#else
+    return wnn::CreateOperatorArray();
 #endif  // defined(WEBNN_ENABLE_WIRE)
 }
 
@@ -158,12 +169,18 @@ bool ExampleBase::ParseAndCheckExampleOptions(int argc, const char* argv[]) {
         } else if (strcmp("-n", argv[i]) == 0 && i + 1 < argc) {
             mNIter = atoi(argv[i + 1]);
         } else if (strcmp("-d", argv[i]) == 0 && i + 1 < argc) {
-            mDevice = argv[i + 1];
+            mDevicePreference = argv[i + 1];
+        } else if (strcmp("-p", argv[i]) == 0 && i + 1 < argc) {
+            mPowerPreference = argv[i + 1];
         }
     }
 
     if (mImagePath.empty() || mWeightsPath.empty() || (mLayout != "nchw" && mLayout != "nhwc") ||
-        mNIter < 1 || (mDevice != "gpu" && mDevice != "cpu" && mDevice != "default")) {
+        mNIter < 1 ||
+        (mDevicePreference != "gpu" && mDevicePreference != "cpu" &&
+         mDevicePreference != "default") ||
+        (mPowerPreference != "high-performance" && mPowerPreference != "low-power" &&
+         mPowerPreference != "default")) {
         dawn::ErrorLog() << "Invalid options.";
         utils::ShowUsage();
         return false;
@@ -184,16 +201,16 @@ namespace utils {
         return prod;
     }
 
-    const ml::FusionOperator CreateActivationOperator(const ml::GraphBuilder& builder,
-                                                      FusedActivation activation,
-                                                      const void* options) {
-        ml::FusionOperator activationOperator;
+    const wnn::FusionOperator CreateActivationOperator(const wnn::GraphBuilder& builder,
+                                                       FusedActivation activation,
+                                                       const void* options) {
+        wnn::FusionOperator activationOperator;
         switch (activation) {
             case FusedActivation::RELU:
                 activationOperator = builder.ReluOperator();
                 break;
             case FusedActivation::RELU6: {
-                auto clampOptions = reinterpret_cast<ml::ClampOptions const*>(options);
+                auto clampOptions = reinterpret_cast<wnn::ClampOptions const*>(options);
                 activationOperator = builder.ClampOperator(clampOptions);
                 break;
             }
@@ -204,7 +221,7 @@ namespace utils {
                 activationOperator = builder.TanhOperator();
                 break;
             case FusedActivation::LEAKYRELU: {
-                auto leakyReluOptions = reinterpret_cast<ml::LeakyReluOptions const*>(options);
+                auto leakyReluOptions = reinterpret_cast<wnn::LeakyReluOptions const*>(options);
                 activationOperator = builder.LeakyReluOperator(leakyReluOptions);
                 break;
             }
@@ -215,17 +232,17 @@ namespace utils {
         return activationOperator;
     }
 
-    const ml::Operand CreateActivationOperand(const ml::GraphBuilder& builder,
-                                              const ml::Operand& input,
-                                              FusedActivation activation,
-                                              const void* options) {
-        ml::Operand activationOperand;
+    const wnn::Operand CreateActivationOperand(const wnn::GraphBuilder& builder,
+                                               const wnn::Operand& input,
+                                               FusedActivation activation,
+                                               const void* options) {
+        wnn::Operand activationOperand;
         switch (activation) {
             case FusedActivation::RELU:
                 activationOperand = builder.Relu(input);
                 break;
             case FusedActivation::RELU6: {
-                auto clampOptions = reinterpret_cast<ml::ClampOptions const*>(options);
+                auto clampOptions = reinterpret_cast<wnn::ClampOptions const*>(options);
                 activationOperand = builder.Clamp(input, clampOptions);
                 break;
             }
@@ -236,7 +253,7 @@ namespace utils {
                 activationOperand = builder.Tanh(input);
                 break;
             case FusedActivation::LEAKYRELU: {
-                auto leakyReluOptions = reinterpret_cast<ml::LeakyReluOptions const*>(options);
+                auto leakyReluOptions = reinterpret_cast<wnn::LeakyReluOptions const*>(options);
                 activationOperand = builder.LeakyRelu(input, leakyReluOptions);
                 break;
             }
@@ -247,35 +264,35 @@ namespace utils {
         return activationOperand;
     }
 
-    ml::Operand BuildInput(const ml::GraphBuilder& builder,
-                           std::string name,
-                           const std::vector<int32_t>& dimensions,
-                           ml::OperandType type) {
-        ml::OperandDescriptor desc = {type, dimensions.data(), (uint32_t)dimensions.size()};
+    wnn::Operand BuildInput(const wnn::GraphBuilder& builder,
+                            std::string name,
+                            const std::vector<int32_t>& dimensions,
+                            wnn::OperandType type) {
+        wnn::OperandDescriptor desc = {type, dimensions.data(), (uint32_t)dimensions.size()};
         return builder.Input(name.c_str(), &desc);
     }
 
-    ml::Operand BuildConstant(const ml::GraphBuilder& builder,
-                              const std::vector<int32_t>& dimensions,
-                              const void* value,
-                              size_t size,
-                              ml::OperandType type) {
-        ml::OperandDescriptor desc = {type, dimensions.data(), (uint32_t)dimensions.size()};
-        ml::ArrayBufferView arrayBuffer = {const_cast<void*>(value), size};
+    wnn::Operand BuildConstant(const wnn::GraphBuilder& builder,
+                               const std::vector<int32_t>& dimensions,
+                               const void* value,
+                               size_t size,
+                               wnn::OperandType type) {
+        wnn::OperandDescriptor desc = {type, dimensions.data(), (uint32_t)dimensions.size()};
+        wnn::ArrayBufferView arrayBuffer = {const_cast<void*>(value), size};
         return builder.Constant(&desc, &arrayBuffer);
     }
 
-    ml::Graph Build(const ml::GraphBuilder& builder, const std::vector<NamedOperand>& outputs) {
-        ml::NamedOperands namedOperands = CreateCppNamedOperands();
+    wnn::Graph Build(const wnn::GraphBuilder& builder, const std::vector<NamedOperand>& outputs) {
+        wnn::NamedOperands namedOperands = CreateCppNamedOperands();
         for (auto& output : outputs) {
             namedOperands.Set(output.name.c_str(), output.operand);
         }
         return builder.Build(namedOperands);
     }
 
-    ml::ComputeGraphStatus Compute(const ml::Graph& graph,
-                                   const std::vector<NamedInput<float>>& inputs,
-                                   const std::vector<NamedOutput<float>>& outputs) {
+    wnn::ComputeGraphStatus Compute(const wnn::Graph& graph,
+                                    const std::vector<NamedInput<float>>& inputs,
+                                    const std::vector<NamedOutput<float>>& outputs) {
         return Compute<float>(graph, inputs, outputs);
     }
 
@@ -395,23 +412,28 @@ namespace utils {
     void ShowUsage() {
         std::cout << std::endl;
         std::cout << "Example Options:" << std::endl;
-        std::cout << "    -h                      "
+        std::cout << "    -h                        "
                   << "Print this message." << std::endl;
-        std::cout << "    -i \"<path>\"             "
+        std::cout << "    -i \"<path>\"               "
                   << "Required. Path to an image." << std::endl;
-        std::cout << "    -m \"<path>\"             "
+        std::cout << "    -m \"<path>\"               "
                   << "Required. Path to the .npy files with trained weights/biases." << std::endl;
         std::cout
-            << "    -l \"<layout>\"           "
+            << "    -l \"<layout>\"             "
             << "Optional. Specify the layout: \"nchw\" or \"nhwc\". The default value is \"nchw\"."
             << std::endl;
-        std::cout << "    -n \"<integer>\"          "
+        std::cout << "    -n \"<integer>\"            "
                   << "Optional. Number of iterations. The default value is 1, and should not be "
                      "less than 1."
                   << std::endl;
-        std::cout << "    -d \"<device>\"           "
-                  << "Optional. Specify a target device: \"cpu\" or \"gpu\" or "
-                     "\"default\" to infer on. The default value is \"default\"."
+        std::cout << "    -d \"<device preference>\"  "
+                  << "Optional. Specify a preferred kind of device: \"default\" or \"gpu\" or "
+                     "\"cpu\" to infer on. The default value is \"default\"."
+                  << std::endl;
+        std::cout << "    -p \"<power preference>\"   "
+                  << "Optional. Specify a preference as related to power consumption: \"default\" "
+                     "or \"high-performance\" or "
+                     "\"low-power\". The default value is \"default\"."
                   << std::endl;
     }
 
@@ -429,17 +451,30 @@ namespace utils {
         }
     }
 
-    const ml::ContextOptions CreateContextOptions(const std::string& device) {
-        ml::ContextOptions options;
-        if (device == "cpu") {
-            options.devicePreference = ml::DevicePreference::Cpu;
-        } else if (device == "gpu") {
-            options.devicePreference = ml::DevicePreference::Gpu;
-        } else if (device == "default") {
-            options.devicePreference = ml::DevicePreference::Default;
+    const wnn::ContextOptions CreateContextOptions(const std::string& devicePreference,
+                                                   const std::string& powerPreference) {
+        wnn::ContextOptions options;
+        if (devicePreference == "default") {
+            options.devicePreference = wnn::DevicePreference::Default;
+        } else if (devicePreference == "gpu") {
+            options.devicePreference = wnn::DevicePreference::Gpu;
+        } else if (devicePreference == "cpu") {
+            options.devicePreference = wnn::DevicePreference::Cpu;
         } else {
-            dawn::ErrorLog()
-                << "Invalid options, only support devices: \"cpu\", \"gpu\" and \"default\".";
+            dawn::ErrorLog() << "Invalid options, only support device preference: \"default\", "
+                                "\"gpu\" and \"cpu\".";
+            DAWN_ASSERT(0);
+        }
+
+        if (powerPreference == "default") {
+            options.powerPreference = wnn::PowerPreference::Default;
+        } else if (powerPreference == "high-performance") {
+            options.powerPreference = wnn::PowerPreference::High_performance;
+        } else if (powerPreference == "low-power") {
+            options.powerPreference = wnn::PowerPreference::Low_power;
+        } else {
+            dawn::ErrorLog() << "Invalid options, only support power preference: \"default\", "
+                                "\"high-performance\" and \"low-power\".";
             DAWN_ASSERT(0);
         }
         return options;

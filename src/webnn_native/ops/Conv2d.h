@@ -20,7 +20,7 @@
 #include "webnn_native/Operand.h"
 #include "webnn_native/Utils.h"
 
-namespace webnn_native { namespace op {
+namespace webnn_native::op {
     template <typename OptionType>
     class Conv2dBase : public OperatorBase {
       public:
@@ -127,7 +127,7 @@ namespace webnn_native { namespace op {
                                  int32_t& outputWidth) {
             int32_t paddingBeginningHeight = mPadding[0], paddingEndingHeight = mPadding[1],
                     paddingBeginningWidth = mPadding[2], paddingEndingWidth = mPadding[3];
-            if (mOptions.autoPad != ml::AutoPad::Explicit) {
+            if (mOptions.autoPad != wnn::AutoPad::Explicit) {
                 utils::ComputeImplicitPaddingForAutoPad(
                     mOptions.autoPad, mOptions.dilations[0], inputHeight, filterHeight,
                     mOptions.strides[0], paddingBeginningHeight, paddingEndingHeight);
@@ -185,6 +185,6 @@ namespace webnn_native { namespace op {
         std::vector<int32_t> mOutputPadding;
         std::vector<int32_t> mOutputSizes;
     };
-}}  // namespace webnn_native::op
+}  // namespace webnn_native::op
 
 #endif  // WEBNN_NATIVE_OPS_CONV2D_H_

@@ -15,6 +15,7 @@
 #include "webnn_native/dml/GraphDML.h"
 
 #include <algorithm>
+#include <numeric>
 
 #include "common/Assert.h"
 #include "common/Log.h"
@@ -23,9 +24,8 @@
 #include "webnn_native/NamedOutputs.h"
 #include "webnn_native/Utils.h"
 #include "webnn_native/dml/ContextDML.h"
-#include "webnn_native/dml/deps/src/precomp.h"
 
-namespace webnn_native { namespace dml {
+namespace webnn_native::dml {
 
     namespace {
         enum TransposeType { NhwcToNchw, NchwToNhwc };
@@ -43,6 +43,10 @@ namespace webnn_native { namespace dml {
             DAWN_ASSERT(index < operatorBase->Outputs().size());
             auto expectedShape = operatorBase->Outputs()[index]->Shape();
             ::dml::TensorDimensions dmlShape = expression.GetOutputDesc().sizes;
+            // Shape {1} equals to shape {} for a scalar.
+            if (dmlShape == std::vector<uint32_t>{1} && expectedShape.size() == 0) {
+                return true;
+            }
             if (expectedShape.size() != dmlShape.size()) {
                 dawn::ErrorLog() << "The size of output shape is expected as "
                                  << expectedShape.size() << ", but got " << dmlShape.size();
@@ -69,15 +73,15 @@ namespace webnn_native { namespace dml {
             return true;
         }
 
-        bool GetDmlTensorDataType(ml::OperandType operandType,
+        bool GetDmlTensorDataType(wnn::OperandType operandType,
                                   DML_TENSOR_DATA_TYPE& dmlTensorDataType) {
-            if (operandType == ml::OperandType::Float32) {
+            if (operandType == wnn::OperandType::Float32) {
                 dmlTensorDataType = DML_TENSOR_DATA_TYPE_FLOAT32;
-            } else if (operandType == ml::OperandType::Float16) {
+            } else if (operandType == wnn::OperandType::Float16) {
                 dmlTensorDataType = DML_TENSOR_DATA_TYPE_FLOAT16;
-            } else if (operandType == ml::OperandType::Int32) {
+            } else if (operandType == wnn::OperandType::Int32) {
                 dmlTensorDataType = DML_TENSOR_DATA_TYPE_INT32;
-            } else if (operandType == ml::OperandType::Uint32) {
+            } else if (operandType == wnn::OperandType::Uint32) {
                 dmlTensorDataType = DML_TENSOR_DATA_TYPE_UINT32;
             } else {
                 return false;
@@ -157,23 +161,23 @@ namespace webnn_native { namespace dml {
         }
 
         ::dml::TensorDimensions CalculateFilterLayoutStrides(
-            ml::Conv2dFilterOperandLayout filterLayout,
+            wnn::Conv2dFilterOperandLayout filterLayout,
             ::dml::TensorDimensions sizes) {
             uint32_t hStride = 0, wStride = 0, iStride = 0, oStride = 0;
             switch (filterLayout) {
-                case ml::Conv2dFilterOperandLayout::Hwio:
+                case wnn::Conv2dFilterOperandLayout::Hwio:
                     hStride = sizes[1] * sizes[2] * sizes[3];
                     wStride = sizes[2] * sizes[3];
                     iStride = sizes[3];
                     oStride = 1;
                     break;
-                case ml::Conv2dFilterOperandLayout::Ohwi:
+                case wnn::Conv2dFilterOperandLayout::Ohwi:
                     oStride = sizes[1] * sizes[2] * sizes[3];
                     hStride = sizes[2] * sizes[3];
                     wStride = sizes[3];
                     iStride = 1;
                     break;
-                case ml::Conv2dFilterOperandLayout::Ihwo:
+                case wnn::Conv2dFilterOperandLayout::Ihwo:
                     iStride = sizes[1] * sizes[2] * sizes[3];
                     hStride = sizes[2] * sizes[3];
                     wStride = sizes[3];
@@ -186,13 +190,13 @@ namespace webnn_native { namespace dml {
             return {oStride, iStride, hStride, wStride};
         }
 
-        ::dml::Expression ReinterpretFilterLayoutAsOihw(ml::Conv2dFilterOperandLayout filterLayout,
+        ::dml::Expression ReinterpretFilterLayoutAsOihw(wnn::Conv2dFilterOperandLayout filterLayout,
                                                         ::dml::Expression filter) {
             ::dml::TensorDimensions filterDims = filter.GetOutputDesc().sizes;
             ::dml::TensorDimensions newFilterDims;
             newFilterDims.resize(4);
             switch (filterLayout) {
-                case ml::Conv2dFilterOperandLayout::Ohwi:
+                case wnn::Conv2dFilterOperandLayout::Ohwi:
                     newFilterDims.resize(4);
                     newFilterDims[0] = filterDims[0];
                     newFilterDims[1] = filterDims[3];
@@ -201,9 +205,9 @@ namespace webnn_native { namespace dml {
                     filter =
                         ::dml::Reinterpret(filter, newFilterDims,
                                            CalculateFilterLayoutStrides(
-                                               ml::Conv2dFilterOperandLayout::Ohwi, filterDims));
+                                               wnn::Conv2dFilterOperandLayout::Ohwi, filterDims));
                     break;
-                case ml::Conv2dFilterOperandLayout::Hwio:
+                case wnn::Conv2dFilterOperandLayout::Hwio:
                     newFilterDims[0] = filterDims[3];
                     newFilterDims[1] = filterDims[2];
                     newFilterDims[2] = filterDims[0];
@@ -211,9 +215,9 @@ namespace webnn_native { namespace dml {
                     filter =
                         ::dml::Reinterpret(filter, newFilterDims,
                                            CalculateFilterLayoutStrides(
-                                               ml::Conv2dFilterOperandLayout::Hwio, filterDims));
+                                               wnn::Conv2dFilterOperandLayout::Hwio, filterDims));
                     break;
-                case ml::Conv2dFilterOperandLayout::Ihwo:
+                case wnn::Conv2dFilterOperandLayout::Ihwo:
                     newFilterDims[0] = filterDims[3];
                     newFilterDims[1] = filterDims[0];
                     newFilterDims[2] = filterDims[1];
@@ -221,7 +225,7 @@ namespace webnn_native { namespace dml {
                     filter =
                         ::dml::Reinterpret(filter, newFilterDims,
                                            CalculateFilterLayoutStrides(
-                                               ml::Conv2dFilterOperandLayout::Ihwo, filterDims));
+                                               wnn::Conv2dFilterOperandLayout::Ihwo, filterDims));
                     break;
                 default:
                     DAWN_ASSERT(0);
@@ -328,6 +332,25 @@ namespace webnn_native { namespace dml {
             aNewStrides = CalculateBroadcastStrides(aNewDims, aBroadcast);
             bNewStrides = CalculateBroadcastStrides(bNewDims, bBroadcast);
             return true;
+        }
+
+        DML_RECURRENT_NETWORK_DIRECTION getRecurrentSequenceDirection(
+            wnn::RecurrentNetworkDirection direction) {
+            DML_RECURRENT_NETWORK_DIRECTION dml_direction;
+            switch (direction) {
+                case wnn::RecurrentNetworkDirection::Forward:
+                    dml_direction = DML_RECURRENT_NETWORK_DIRECTION_FORWARD;
+                    break;
+                case wnn::RecurrentNetworkDirection::Backward:
+                    dml_direction = DML_RECURRENT_NETWORK_DIRECTION_BACKWARD;
+                    break;
+                case wnn::RecurrentNetworkDirection::Both:
+                    dml_direction = DML_RECURRENT_NETWORK_DIRECTION_BIDIRECTIONAL;
+                    break;
+                default:
+                    assert(0);
+            }
+            return dml_direction;
         }
 
         std::string OpTypeToString(op::BinaryOpType type) {
@@ -459,12 +482,29 @@ namespace webnn_native { namespace dml {
     }
 
     Graph::Graph(Context* context) : GraphBase(context) {
-        ml::DevicePreference devicePreference = GetContext()->GetContextOptions().devicePreference;
-        bool useGpu = devicePreference == ml::DevicePreference::Cpu ? false : true;
-#if defined(_DEBUG)
-        mDevice.reset(new ::pydml::Device(useGpu, true));
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+        mDevice.reset(new ::pydml::Device(context->GetWGPUDevice()));
 #else
-        mDevice.reset(new ::pydml::Device(useGpu, false));
+        wnn::DevicePreference devicePreference = GetContext()->GetContextOptions().devicePreference;
+        bool useGpu = devicePreference == wnn::DevicePreference::Cpu ? false : true;
+
+        wnn::PowerPreference powerPreference = GetContext()->GetContextOptions().powerPreference;
+        DXGI_GPU_PREFERENCE gpuPreference;
+        switch (powerPreference) {
+            case wnn::PowerPreference::High_performance:
+                gpuPreference = DXGI_GPU_PREFERENCE::DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE;
+                break;
+            case wnn::PowerPreference::Low_power:
+                gpuPreference = DXGI_GPU_PREFERENCE::DXGI_GPU_PREFERENCE_MINIMUM_POWER;
+                break;
+            default:
+                gpuPreference = DXGI_GPU_PREFERENCE::DXGI_GPU_PREFERENCE_UNSPECIFIED;
+        }
+#    if defined(_DEBUG)
+        mDevice.reset(new ::pydml::Device(useGpu, true, gpuPreference));
+#    else
+        mDevice.reset(new ::pydml::Device(useGpu, false, gpuPreference));
+#    endif
 #endif
         mDevice->Init();
         mGraph.reset(new ::dml::Graph(mDevice->GetDevice()));
@@ -473,18 +513,35 @@ namespace webnn_native { namespace dml {
     ::dml::Expression Graph::BindingConstant(DML_TENSOR_DATA_TYPE dmlTensorType,
                                              ::dml::TensorDimensions dmlTensorDims,
                                              void const* value,
-                                             size_t size) {
+                                             size_t size
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+                                             ,
+                                             WGPUBuffer wgpuBuffer
+#endif
+    ) {
         ::dml::TensorDesc dmlTensorDesc(dmlTensorType,
                                         ::DML_TENSOR_FLAGS::DML_TENSOR_FLAG_OWNED_BY_DML,
                                         dmlTensorDims, ::dml::TensorPolicy::Default());
         ::dml::Expression dmlConstant =
-            ::dml::InputTensor(*mGraph, mBindings.size(), dmlTensorDesc);
-        std::unique_ptr<char> buffer(new char[size]);
-        memcpy(buffer.get(), value, size);
-        std::unique_ptr<::pydml::Binding> binding(
-            new ::pydml::Binding(dmlConstant, static_cast<void*>(buffer.get()), size));
-        mConstantBuffers.push_back(std::move(buffer));
-        mBindings.push_back(std::move(binding));
+            ::dml::InputTensor(*mGraph, mInputBindings.size(), dmlTensorDesc);
+        std::unique_ptr<::pydml::Binding> binding;
+        // Input data is array buffer view.
+        if (value != nullptr) {
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+            UNREACHABLE();
+#else
+            std::unique_ptr<char> buffer(new char[size]);
+            memcpy(buffer.get(), value, size);
+            binding.reset(
+                new ::pydml::Binding(dmlConstant, static_cast<void*>(buffer.get()), size));
+            mConstantBuffers.push_back(std::move(buffer));
+#endif
+        } else {
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+            binding.reset(new ::pydml::Binding(dmlConstant, wgpuBuffer, size, 0));
+#endif
+        }
+        mInputBindings.push_back(std::move(binding));
         return dmlConstant;
     }
 
@@ -499,10 +556,18 @@ namespace webnn_native { namespace dml {
             return DAWN_INTERNAL_ERROR("Failed to get DML tensor dimensions.");
         }
 
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+        auto dmlConstant = BindingConstant(dmlTensorType, dmlTensorDims, nullptr,
+                                           constant->GetByteLength(), constant->GetWGPUBuffer());
+        Ref<OperandBase> constantOperand = AcquireRef<OperandBase>(constant->PrimaryOutput());
+        constantOperand->Reference();
+        mConstants.push_back(std::move(constantOperand));
+#else
         auto dmlConstant = BindingConstant(dmlTensorType, dmlTensorDims, constant->GetBuffer(),
                                            constant->GetByteLength());
-        mExpression.insert(std::make_pair(constant->PrimaryOutput(), dmlConstant));
         mConstantSet.insert(constant->PrimaryOutput());
+#endif
+        mExpression.insert(std::make_pair(constant->PrimaryOutput(), dmlConstant));
         DAWN_ASSERT(CheckShape(dmlConstant, constant));
         return {};
     }
@@ -522,6 +587,9 @@ namespace webnn_native { namespace dml {
                 break;
             case FusionType::Sigmoid:
                 dmlActivation = ::dml::FusedActivation::Sigmoid();
+                break;
+            case FusionType::Tanh:
+                dmlActivation = ::dml::FusedActivation::Tanh();
                 break;
             case FusionType::LeakyRelu:
                 dmlActivation = ::dml::FusedActivation::LeakyRelu(
@@ -562,19 +630,23 @@ namespace webnn_native { namespace dml {
         }
         ::dml::TensorDesc dmlTensorDesc(dmlTensorType, dmlTensorDims,
                                         ::dml::TensorPolicy::Default());
-        ::dml::Expression dmlInput = ::dml::InputTensor(*mGraph, mBindings.size(), dmlTensorDesc);
+        ::dml::Expression dmlInput =
+            ::dml::InputTensor(*mGraph, mInputBindings.size(), dmlTensorDesc);
         mExpression.insert(std::make_pair(input->PrimaryOutput(), dmlInput));
         std::unique_ptr<::pydml::Binding> binding(new ::pydml::Binding(dmlInput, nullptr, 0));
-        mBindings.push_back(std::move(binding));
-        mInputs.insert(std::make_pair(input->GetName(), mBindings.back().get()));
+        mInputBindings.push_back(std::move(binding));
+        mInputBindingMap.insert(std::make_pair(input->GetName(), mInputBindings.back().get()));
         DAWN_ASSERT(CheckShape(dmlInput, input));
         return {};
     }
 
-    MaybeError Graph::AddOutput(const std::string& name, const OperandBase* output) {
+    MaybeError Graph::AddOutput(std::string_view name, const OperandBase* output) {
         DAWN_ASSERT(mExpression.find(output) != mExpression.end());
         ::dml::Expression dmlOutput = mExpression.at(output);
-        mOutputs.insert(std::make_pair(name, dmlOutput));
+        mOutputExpressionMap.insert(std::make_pair(name.data(), dmlOutput));
+        std::unique_ptr<::pydml::Binding> binding(new ::pydml::Binding(dmlOutput, nullptr, 0));
+        mOutputBindings.push_back(std::move(binding));
+        mOutputBindingMap.insert(std::make_pair(name, mOutputBindings.back().get()));
         return {};
     }
 
@@ -762,11 +834,11 @@ namespace webnn_native { namespace dml {
         ::dml::Expression filter = mExpression.at(inputsOperand[1].Get());
         const Conv2dOptions* options = conv2d->GetOptions();
 
-        if (options->inputLayout == ml::InputOperandLayout::Nhwc) {
+        if (options->inputLayout == wnn::InputOperandLayout::Nhwc) {
             input = ReinterpretInputLayout(NhwcToNchw, input);
         }
 
-        if (options->filterLayout != ml::Conv2dFilterOperandLayout::Oihw) {
+        if (options->filterLayout != wnn::Conv2dFilterOperandLayout::Oihw) {
             filter = ReinterpretFilterLayoutAsOihw(options->filterLayout, filter);
         }
 
@@ -777,7 +849,7 @@ namespace webnn_native { namespace dml {
         ::dml::Span<const uint32_t> dilations(reinterpret_cast<const uint32_t*>(options->dilations),
                                               options->dilationsCount);
 
-        auto padding = options->autoPad == ml::AutoPad::Explicit
+        auto padding = options->autoPad == wnn::AutoPad::Explicit
                            ? ExplicitPadding<Conv2dOptions>(options)
                            : ImplicitPadding<Conv2dOptions>(options, input, filter);
         // dml::Span just holds the refernces, need a variable to hold the memory.
@@ -806,7 +878,7 @@ namespace webnn_native { namespace dml {
             {},
             // groupCount
             options->groups, CreateFusedActivation(options->activation));
-        if (options->inputLayout == ml::InputOperandLayout::Nhwc) {
+        if (options->inputLayout == wnn::InputOperandLayout::Nhwc) {
             output = ::dml::Identity(ReinterpretInputLayout(NchwToNhwc, output));
         }
         output = EmulateFusedActivation(options->activation, output);
@@ -819,66 +891,68 @@ namespace webnn_native { namespace dml {
         return DAWN_UNIMPLEMENTED_ERROR("ConvTranspose2D has not been supported on DirectML.");
     }
 
-    MaybeError Graph::AddGru(const op::Gru* gru) {
-        return DAWN_UNIMPLEMENTED_ERROR("Gru hasn't been supported on DirectML.");
-    }
-
     MaybeError Graph::AddPad(const op::Pad* pad) {
         auto inputsOperand = pad->Inputs();
-        DAWN_ASSERT(inputsOperand.size() == 2);
         DAWN_ASSERT(mExpression.find(inputsOperand[0].Get()) != mExpression.end());
         ::dml::Expression input = mExpression.at(inputsOperand[0].Get());
-        DAWN_ASSERT(mExpression.find(inputsOperand[1].Get()) != mExpression.end());
-        ::dml::Expression padding = mExpression.at(inputsOperand[1].Get());
-
-        // Workaround(mingming): If padding was added in mGraph, it must be used.
-        // Use "Pad_"+std::to_string(mExpression.size()) to generate a unique name for the output
-        // node. This may be a dml issue: https://github.com/microsoft/DirectML/issues/133.
-        std::string name = "Pad_" + std::to_string(mExpression.size());
-        mOutputs[name] = ::dml::Identity(padding);
-
         ::dml::TensorDimensions inputDims = input.GetOutputDesc().sizes;
         uint32_t inputRank = inputDims.size();
-        if (mConstantSet.find(inputsOperand[1].Get()) == mConstantSet.end()) {
-            return DAWN_INTERNAL_ERROR("The padding constant is not found.");
-        }
+        // dml::Span just holds the refernces, need a variable to hold the memory.
+        std::vector<uint32_t> startPaddingVector;
+        std::vector<uint32_t> endPaddingVector;
+        if (inputsOperand.size() == 2) {
+            DAWN_ASSERT(mExpression.find(inputsOperand[1].Get()) != mExpression.end());
+            if (mConstantSet.find(inputsOperand[1].Get()) == mConstantSet.end()) {
+                return DAWN_INTERNAL_ERROR("The padding constant is not found.");
+            }
+            ::dml::Expression padding = mExpression.at(inputsOperand[1].Get());
 
-        const op::Constant* paddingConstant =
-            reinterpret_cast<const op::Constant*>(inputsOperand[1]->Operator());
-        ::dml::TensorDimensions paddingDims = padding.GetOutputDesc().sizes;
-        if (paddingDims[1] != 2 || paddingDims[0] != inputRank) {
-            return DAWN_INTERNAL_ERROR(
-                "The padding should has shape [n, 2], where n is the rank of the input tensor");
+            // Workaround(mingming): If padding was added in mGraph, it must be used.
+            // Use "Pad_"+std::to_string(mExpression.size()) to generate a unique name for the
+            // output node. This may be a dml issue:
+            // https://github.com/microsoft/DirectML/issues/133.
+            std::string name = "Pad_" + std::to_string(mExpression.size());
+            mOutputExpressionMap[name] = ::dml::Identity(padding);
+
+            const op::Constant* paddingConstant =
+                reinterpret_cast<const op::Constant*>(inputsOperand[1]->Operator());
+            ::dml::TensorDimensions paddingDims = padding.GetOutputDesc().sizes;
+            if (paddingDims[1] != 2 || paddingDims[0] != inputRank) {
+                return DAWN_INTERNAL_ERROR(
+                    "The padding should has shape [n, 2], where n is the rank of the input tensor");
+            }
+            const uint32_t* paddingData =
+                static_cast<const uint32_t*>(paddingConstant->GetBuffer());
+            for (size_t i = 0; i < inputRank; ++i) {
+                startPaddingVector.push_back(paddingData[2 * i]);
+                endPaddingVector.push_back(paddingData[2 * i + 1]);
+            }
+        } else {
+            for (size_t i = 0; i < inputRank; ++i) {
+                startPaddingVector.push_back(pad->GetPadding()[2 * i]);
+                endPaddingVector.push_back(pad->GetPadding()[2 * i + 1]);
+            }
         }
 
         const PadOptions* options = pad->GetOptions();
         DML_PADDING_MODE paddingMode;
         switch (options->mode) {
-            case ml::PaddingMode::Edge:
+            case wnn::PaddingMode::Edge:
                 paddingMode = DML_PADDING_MODE_EDGE;
                 break;
-            case ml::PaddingMode::Reflection:
+            case wnn::PaddingMode::Reflection:
                 paddingMode = DML_PADDING_MODE_REFLECTION;
                 break;
-            case ml::PaddingMode::Symmetric:
+            case wnn::PaddingMode::Symmetric:
                 paddingMode = DML_PADDING_MODE_SYMMETRIC;
                 break;
-            case ml::PaddingMode::Constant:
+            case wnn::PaddingMode::Constant:
                 paddingMode = DML_PADDING_MODE_CONSTANT;
                 break;
             default:
                 DAWN_ASSERT(0);
         }
         float paddingValue = options->value;
-
-        // dml::Span just holds the refernces, need a variable to hold the memory.
-        std::vector<uint32_t> startPaddingVector;
-        std::vector<uint32_t> endPaddingVector;
-        const uint32_t* paddingData = static_cast<const uint32_t*>(paddingConstant->GetBuffer());
-        for (size_t i = 0; i < inputRank; ++i) {
-            startPaddingVector.push_back(paddingData[2 * i]);
-            endPaddingVector.push_back(paddingData[2 * i + 1]);
-        }
         ::dml::Span<const uint32_t> startPadding(startPaddingVector);
         ::dml::Span<const uint32_t> endPadding(endPaddingVector);
         ::dml::Expression output =
@@ -888,13 +962,17 @@ namespace webnn_native { namespace dml {
         return {};
     }
 
+    //  DirectMlX.h hasn't supported setting correct outputSizes which need to match the specified
+    //  roundingType, then pool2d always performs as specifying floor roundingType. Track this by
+    //  issue: https://github.com/microsoft/DirectML/issues/205 and
+    //  https://github.com/webmachinelearning/webnn-native/issues/217.
     MaybeError Graph::AddPool2d(const op::Pool2d* pool2d) {
         DAWN_ASSERT(pool2d->Inputs().size() == 1);
         const OperandBase* inputOperand = pool2d->Inputs()[0].Get();
         DAWN_ASSERT(mExpression.find(inputOperand) != mExpression.end());
         ::dml::Expression input = mExpression.at(inputOperand);
         const Pool2dOptions* options = pool2d->GetOptions();
-        if (options->layout == ml::InputOperandLayout::Nhwc) {
+        if (options->layout == wnn::InputOperandLayout::Nhwc) {
             input = ReinterpretInputLayout(NhwcToNchw, input);
         }
         ::dml::TensorDimensions inputDims = input.GetOutputDesc().sizes;
@@ -913,7 +991,7 @@ namespace webnn_native { namespace dml {
         ::dml::Span<const uint32_t> windowSizes(windowSizesVector);
         ::dml::Span<const uint32_t> dilations(reinterpret_cast<const uint32_t*>(options->dilations),
                                               options->dilationsCount);
-        auto padding = options->autoPad == ml::AutoPad::Explicit
+        auto padding = options->autoPad == wnn::AutoPad::Explicit
                            ? ExplicitPadding<Pool2dOptions>(options)
                            : ImplicitPadding<Pool2dOptions>(options, input, windowSizesVector);
         // dml::Span just holds the refernces, need a variable to hold the memory.
@@ -922,12 +1000,16 @@ namespace webnn_native { namespace dml {
         std::vector<const uint32_t> endPaddingVector = {padding[1], padding[3]};
         ::dml::Span<const uint32_t> endPadding(endPaddingVector);
         ::dml::Expression output;
+        auto outputSizes = pool2d->GetOutputSizes();
+        ::dml::TensorDimensions outputShape = {inputDims[0], inputDims[1],
+                                               static_cast<uint32_t>(outputSizes[0]),
+                                               static_cast<uint32_t>(outputSizes[1])};
         if (pool2d->GetType() == op::Pool2dType::kAveragePool2d) {
             if (dilations[0] != 1 || dilations[1] != 1) {
                 return DAWN_INTERNAL_ERROR("The dilations of average pool2d are not supported.");
             }
-            output =
-                ::dml::AveragePooling(input, strides, windowSizes, startPadding, endPadding, false);
+            output = ::dml::AveragePooling(input, strides, windowSizes, startPadding, endPadding,
+                                           false, outputShape);
         }
         // L2Pool2d is not supported, emulate it by referring to
         // https://github.com/tensorflow/tfjs/issues/5539.
@@ -936,18 +1018,28 @@ namespace webnn_native { namespace dml {
             std::vector<float> constant(length, 2);
             auto pow = ::dml::Pow(input, BindingConstant(DML_TENSOR_DATA_TYPE_FLOAT32, inputDims,
                                                          constant.data(), sizeof(float) * length));
-            auto avgPool2d =
-                ::dml::AveragePooling(pow, strides, windowSizes, startPadding, endPadding, false);
+            auto avgPool2d = ::dml::AveragePooling(pow, strides, windowSizes, startPadding,
+                                                   endPadding, false, outputShape);
             output = ::dml::Sqrt(avgPool2d);
         } else if (pool2d->GetType() == op::Pool2dType::kMaxPool2d) {
+            if (dilations[0] != 1 || dilations[1] != 1) {
+                for (size_t i = 0; i < windowSizes.size(); ++i) {
+                    uint32_t paddedInputSize = inputDims[2 + i] + startPadding[i] + endPadding[i];
+                    uint32_t dilatedWindowSize = 1 + (windowSizes[i] - 1) * dilations[i];
+                    outputShape[2 + i] =
+                        (dilatedWindowSize >= paddedInputSize)
+                            ? 1
+                            : (paddedInputSize - dilatedWindowSize) / strides[i] + 1;
+                }
+            }
             output = ::dml::MaxPooling(input, windowSizes, strides, startPadding, endPadding,
-                                       dilations, false)
+                                       dilations, false, outputShape)
                          .values;
         } else {
             return DAWN_INTERNAL_ERROR("This pool2d type is not supported.");
         }
 
-        if (options->layout == ml::InputOperandLayout::Nhwc) {
+        if (options->layout == wnn::InputOperandLayout::Nhwc) {
             output = ::dml::Identity(ReinterpretInputLayout(NchwToNhwc, output));
         }
         mExpression.insert(std::make_pair(pool2d->PrimaryOutput(), output));
@@ -1007,6 +1099,12 @@ namespace webnn_native { namespace dml {
             case op::ReduceType::kReduceSum:
                 output = ::dml::Reduce(input, DML_REDUCE_FUNCTION_SUM, axes);
                 break;
+            case op::ReduceType::kReduceArgMax:
+                output = ::dml::Reduce(input, DML_REDUCE_FUNCTION_ARGMAX, axes);
+                break;
+            case op::ReduceType::kReduceArgMin:
+                output = ::dml::Reduce(input, DML_REDUCE_FUNCTION_ARGMIN, axes);
+                break;
             default:
                 return DAWN_INTERNAL_ERROR("The reduce op type isn't supported.");
         }
@@ -1046,10 +1144,10 @@ namespace webnn_native { namespace dml {
 
         DML_INTERPOLATION_MODE mode;
         switch (options->mode) {
-            case ml::InterpolationMode::NearestNeighbor:
+            case wnn::InterpolationMode::NearestNeighbor:
                 mode = DML_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
                 break;
-            case ml::InterpolationMode::Linear:
+            case wnn::InterpolationMode::Linear:
                 mode = DML_INTERPOLATION_MODE_LINEAR;
                 break;
             default:
@@ -1267,7 +1365,7 @@ namespace webnn_native { namespace dml {
         DAWN_ASSERT(mExpression.find(instanceNorm->Inputs()[0].Get()) != mExpression.end());
         ::dml::Expression input = mExpression.at(instanceNorm->Inputs()[0].Get());
         const InstanceNormOptions* options = instanceNorm->GetOptions();
-        if (options->layout == ml::InputOperandLayout::Nhwc) {
+        if (options->layout == wnn::InputOperandLayout::Nhwc) {
             input = ReinterpretInputLayout(NhwcToNchw, input);
         }
 
@@ -1310,7 +1408,7 @@ namespace webnn_native { namespace dml {
         ::dml::Expression output = ::dml::MeanVarianceNormalization(
             input, expressions[0], expressions[1], axes, true, options->epsilon);
 
-        if (options->layout == ml::InputOperandLayout::Nhwc) {
+        if (options->layout == wnn::InputOperandLayout::Nhwc) {
             output = ReinterpretInputLayout(NchwToNhwc, output);
         }
         mExpression.insert(std::make_pair(instanceNorm->PrimaryOutput(), output));
@@ -1459,11 +1557,13 @@ namespace webnn_native { namespace dml {
             // Expand dimensions to DML_TENSOR_DIMENSION_COUNT_MAX if needed.
             if (inputDims.size() < DML_TENSOR_DIMENSION_COUNT_MAX) {
                 auto newDims = ExpandDimensions(inputDims, DML_TENSOR_DIMENSION_COUNT_MAX);
-                axis = concat->GetAxis() + (DML_TENSOR_DIMENSION_COUNT_MAX - inputDims.size());
                 input = ::dml::Reinterpret(input, newDims, ::dml::NullOpt);
             }
             inputs.push_back(input);
         }
+
+        // Update the axis to align with the DML_TENSOR_DIMENSION_COUNT_MAX.
+        axis += DML_TENSOR_DIMENSION_COUNT_MAX - primaryDims.size();
         ::dml::Expression output = ::dml::Join(inputs, axis);
         ::dml::TensorDimensions outputDims = output.GetOutputDesc().sizes;
         // Reshape back according to output rank if needed.
@@ -1547,18 +1647,146 @@ namespace webnn_native { namespace dml {
         return {};
     }
 
+    MaybeError Graph::AddGru(const op::Gru* gru) {
+        auto inputs = gru->Inputs();
+        auto options = gru->GetOptions();
+        DAWN_ASSERT(inputs.size() >= 3 && inputs.size() <= 6);
+
+        DAWN_ASSERT(mExpression.find(inputs[0].Get()) != mExpression.end());
+        ::dml::Expression input = mExpression.at(inputs[0].Get());
+        ::dml::TensorDimensions inputDims = input.GetOutputDesc().sizes;
+        // Reshape input from 3-D to 4-D layout.
+        ::dml::TensorDimensions expandInputDimens = ExpandDimensions(inputDims, 4);
+        input = ::dml::Reinterpret(input, expandInputDimens, ::dml::NullOpt);
+
+        DAWN_ASSERT(mExpression.find(inputs[1].Get()) != mExpression.end());
+        ::dml::Expression weight = mExpression.at(inputs[1].Get());
+        ::dml::TensorDimensions weightDims = weight.GetOutputDesc().sizes;
+        // Reshape weight from 3-D to 4-D layout.
+        ::dml::TensorDimensions expandWeightDimens = ExpandDimensions(weightDims, 4);
+        weight = ::dml::ActivationIdentity(
+            ::dml::Reinterpret(weight, expandWeightDimens, ::dml::NullOpt));
+
+        DAWN_ASSERT(mExpression.find(inputs[2].Get()) != mExpression.end());
+        ::dml::Expression recurrentWeight = mExpression.at(inputs[2].Get());
+        ::dml::TensorDimensions recurrentWeightDims = recurrentWeight.GetOutputDesc().sizes;
+        // Reshape recurrentWeight from 3-D to 4-D layout.
+        ::dml::TensorDimensions expandRecurrentWeightDimens =
+            ExpandDimensions(recurrentWeightDims, 4);
+        recurrentWeight = ::dml::ActivationIdentity(
+            ::dml::Reinterpret(recurrentWeight, expandRecurrentWeightDimens, ::dml::NullOpt));
+
+        int n = 3;
+        ::dml::Optional<::dml::Expression> bias = ::dml::NullOpt;
+        ::dml::Expression normalBias;
+        ::dml::Expression recurrentBias;
+        ::dml::TensorDimensions halfBiasDimens = {1, 1, weightDims[0], weightDims[1]};
+        if (options->bias != nullptr) {
+            DAWN_ASSERT(mExpression.find(inputs[n].Get()) != mExpression.end());
+            normalBias = mExpression.at(inputs[n++].Get());
+            ::dml::TensorDimensions normalBiasDims = normalBias.GetOutputDesc().sizes;
+            // Reshape normal bias from 2-D to 4-D layout.
+            normalBias = ::dml::Reinterpret(normalBias, halfBiasDimens, ::dml::NullOpt);
+        } else {
+            uint32_t length = SizeOfShape(halfBiasDimens);
+            std::vector<float> constant(length, 0);
+            normalBias = BindingConstant(DML_TENSOR_DATA_TYPE_FLOAT32, halfBiasDimens,
+                                         constant.data(), sizeof(float) * length);
+        }
+        if (options->recurrentBias != nullptr) {
+            DAWN_ASSERT(mExpression.find(inputs[n].Get()) != mExpression.end());
+            recurrentBias = mExpression.at(inputs[n++].Get());
+            ::dml::TensorDimensions recurrentBiasDims = recurrentBias.GetOutputDesc().sizes;
+            // Reshape recurrent bias from 2-D to 4-D layout.
+            recurrentBias = ::dml::Reinterpret(recurrentBias, halfBiasDimens, ::dml::NullOpt);
+        } else {
+            uint32_t length = SizeOfShape(halfBiasDimens);
+            std::vector<float> constant(length, 0);
+            recurrentBias = BindingConstant(DML_TENSOR_DATA_TYPE_FLOAT32, halfBiasDimens,
+                                            constant.data(), sizeof(float) * length);
+        }
+        std::vector<::dml::Expression> biasExpressions = {normalBias, recurrentBias};
+        bias = ::dml::Join(biasExpressions, 3);
+
+        ::dml::Optional<::dml::Expression> initialHiddenState = ::dml::NullOpt;
+        if (options->initialHiddenState != nullptr) {
+            DAWN_ASSERT(mExpression.find(inputs[n].Get()) != mExpression.end());
+            initialHiddenState = mExpression.at(inputs[n++].Get());
+            ::dml::TensorDimensions initialHiddenStateDims =
+                initialHiddenState->GetOutputDesc().sizes;
+            // Reshape initialHiddenState from 3-D to 4-D layout.
+            ::dml::TensorDimensions expandInitialHiddenStateDimens =
+                ExpandDimensions(initialHiddenStateDims, 4);
+            initialHiddenState = ::dml::Reinterpret(*initialHiddenState,
+                                                    expandInitialHiddenStateDimens, ::dml::NullOpt);
+            initialHiddenState = ::dml::ActivationIdentity(initialHiddenState->Impl());
+        }
+
+        ::dml::Optional<::dml::Expression> SequenceLength = ::dml::NullOpt;
+        DML_RECURRENT_NETWORK_DIRECTION direction =
+            getRecurrentSequenceDirection(options->direction);
+
+        // TODO: layout
+        if (options->layout == wnn::RecurrentNetworkWeightLayout::Rzn) {
+            return DAWN_INTERNAL_ERROR(
+                "layout defaults to 'zrn'. Only 'zrn' is currently supported.");
+        }
+
+        ::dml::FusedActivation fActivation, gActivation;
+        if (options->activations == nullptr) {
+            fActivation = ::dml::FusedActivation::Sigmoid();
+            gActivation = ::dml::FusedActivation::Tanh();
+        } else {
+            fActivation = CreateFusedActivation(options->activations->Get(0));
+            gActivation = CreateFusedActivation(options->activations->Get(1));
+        }
+        std::vector<::dml::FusedActivation> activations;
+        if (direction ==
+            DML_RECURRENT_NETWORK_DIRECTION::DML_RECURRENT_NETWORK_DIRECTION_BIDIRECTIONAL) {
+            activations = {fActivation, gActivation, fActivation, gActivation};
+        } else {
+            activations = {fActivation, gActivation};
+        }
+        ::dml::Span<const ::dml::FusedActivation> activationDescs(activations);
+        bool linearBeforeReset = options->resetAfter;
+        ::dml::GRUOutputOptions outputOption = ::dml::GRUOutputOptions::Both;
+
+        ::dml::GRUOutputs outputs =
+            ::dml::GRU(input, weight, recurrentWeight, bias, initialHiddenState, SequenceLength,
+                       activationDescs, direction, linearBeforeReset, outputOption);
+        ::dml::Expression singleOutput = outputs.single;
+        ::dml::TensorDimensions singleOutputDims = singleOutput.GetOutputDesc().sizes;
+        // Reshape initialHiddenState from 4-D to 3-D layout.
+        ::dml::TensorDimensions shrinkDimens = ShrinkDimensions(singleOutputDims, 3);
+        singleOutput = ::dml::Reinterpret(singleOutput, shrinkDimens, ::dml::NullOpt);
+        mExpression.insert(std::make_pair(gru->Outputs()[0].Get(), singleOutput));
+        if (options->returnSequence) {
+            ::dml::Expression sequenceOutput = outputs.sequence;
+            mExpression.insert(std::make_pair(gru->Outputs()[1].Get(), sequenceOutput));
+        }
+        return {};
+    }
+
     MaybeError Graph::Finish() {
-        if (mInputs.empty()) {
+        if (mInputBindingMap.empty()) {
             return DAWN_VALIDATION_ERROR("Model inputs must be set.");
         }
-        if (mOutputs.size() == 1) {
-            auto output = mOutputs.begin();
-            if (output->second.Impl()->GetNode().type == ::dml::detail::NodeType::Reinterpret) {
+        if (mOutputExpressionMap.size() == 1) {
+            std::string name = mOutputExpressionMap.begin()->first;
+            auto outputExp = mOutputExpressionMap.begin()->second;
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+            auto builder = outputExp.Impl()->GetGraphBuilder();
+#endif
+            auto node = outputExp.Impl()->GetNode();
+            if (node.type == ::dml::detail::NodeType::Reinterpret
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+                && builder->m_reinterpretNodes[node.index].input->GetNode().type ==
+                       ::dml::detail::NodeType::Input
+#endif
+            ) {
                 // Deal with a graph with single reshape node.
                 // https://github.com/microsoft/DirectML/issues/71
-                std::string name = output->first;
-                ::dml::Expression reshape = output->second;
-                mOutputs[name] = ::dml::ActivationIdentity(reshape);
+                mOutputExpressionMap[name] = ::dml::ActivationIdentity(outputExp);
             }
         }
 
@@ -1568,7 +1796,7 @@ namespace webnn_native { namespace dml {
     MaybeError Graph::CompileImpl() {
         // FIXME(nhu): implement async
         std::vector<::dml::Expression> outputs;
-        for (auto& output : mOutputs) {
+        for (auto& output : mOutputExpressionMap) {
             outputs.push_back(output.second);
         }
         // TODO(nhu): investigate other execution flag,
@@ -1576,7 +1804,7 @@ namespace webnn_native { namespace dml {
         mCompiledModel.reset(new pydml::CompiledModel(*(mGraph), DML_EXECUTION_FLAG_NONE, outputs));
 
         std::vector<pydml::Binding*> inputBindings;
-        for (auto& binding : mBindings) {
+        for (auto& binding : mInputBindings) {
             inputBindings.push_back(binding.get());
         }
         std::lock_guard<std::mutex> lock(mMutex);
@@ -1586,36 +1814,76 @@ namespace webnn_native { namespace dml {
         return {};
     }
 
-    MLComputeGraphStatus Graph::ComputeImpl(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
+    WNNComputeGraphStatus Graph::ComputeImpl(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
         auto namedInputs = inputs->GetRecords();
-        for (auto& input : mInputs) {
+        for (auto& [name, inputBinding] : mInputBindingMap) {
             // All the inputs must be set.
-            if (namedInputs.find(input.first) == namedInputs.end()) {
+            if (namedInputs.find(name) == namedInputs.end()) {
                 dawn::ErrorLog() << "The input must be set.";
-                return MLComputeGraphStatus_Error;
+                return WNNComputeGraphStatus_Error;
             }
 
-            ::pydml::Binding* inputBinding = input.second;
-            auto& resource = namedInputs[input.first].resource;
-            inputBinding->data.buffer = static_cast<int8_t*>(resource.buffer) + resource.byteOffset;
-            inputBinding->data.size = resource.byteLength;
+            auto& resource = namedInputs[name].resource;
+            if (resource.arrayBufferView.buffer != nullptr) {
+#ifndef WEBNN_ENABLE_GPU_BUFFER
+                auto& arrayBuffer = resource.arrayBufferView;
+                inputBinding->data.buffer =
+                    static_cast<int8_t*>(arrayBuffer.buffer) + arrayBuffer.byteOffset;
+                inputBinding->data.size = arrayBuffer.byteLength;
+#endif
+            } else {
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+                auto& gpuBuffer = resource.gpuBufferView;
+                DAWN_ASSERT(gpuBuffer.id != 0);
+                inputBinding->data.buffer = reinterpret_cast<WGPUBuffer>(gpuBuffer.buffer);
+                inputBinding->data.offset = gpuBuffer.offset;
+                inputBinding->data.size = gpuBuffer.size;
+#endif
+            }
         }
         std::vector<pydml::Binding*> inputBindings;
-        for (auto& binding : mBindings) {
+        for (auto& binding : mInputBindings) {
             inputBindings.push_back(binding.get());
         }
+
         std::vector<::dml::Expression*> outputExpressions;
         std::vector<std::string> outputNames;
-        for (auto& output : mOutputs) {
-            outputNames.push_back(output.first);
-            outputExpressions.push_back(&(output.second));
+        for (auto& [name, output] : mOutputExpressionMap) {
+            outputNames.push_back(name);
+            outputExpressions.push_back(&output);
         }
-        std::vector<pydml::TensorData*> outputTensors;
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+        std::vector<pydml::Binding*> outputBindings;
+        auto namedOutputs = outputs->GetRecords();
+        for (auto& output : mOutputBindingMap) {
+            ::pydml::Binding* binding = output.second;
+            auto& bufferView = namedOutputs[output.first];
+            if (bufferView.arrayBufferView.) {
+                dawn::InfoLog()
+                    << "Array Buffer input use expression parameters in DispatchOperator.";
+            } else {
+                WGPUBuffer gpuBuffer =
+                    reinterpret_cast<WGPUBuffer>(bufferView.gpuBufferView.buffer);
+                binding->data.buffer = gpuBuffer;
+                binding->data.offset = bufferView.gpuBufferView.offset;
+                binding->data.size = bufferView.gpuBufferView.size;
+            }
+            outputBindings.push_back(binding);
+        }
+#endif
+
         std::lock_guard<std::mutex> lock(mMutex);
+#ifdef WEBNN_ENABLE_GPU_BUFFER
+        if (FAILED(mDevice->DispatchOperator(mCompiledModel->op.Get(), inputBindings,
+                                             outputBindings))) {
+            dawn::ErrorLog() << "Failed to dispatch operator.";
+        }
+#else
+        std::vector<pydml::TensorData*> outputTensors;
         if (FAILED(mDevice->DispatchOperator(mCompiledModel->op.Get(), inputBindings,
                                              outputExpressions, outputTensors))) {
             dawn::ErrorLog() << "Failed to dispatch operator.";
-            return MLComputeGraphStatus_Error;
+            return WNNComputeGraphStatus_Error;
         }
 
         for (size_t i = 0; i < outputNames.size(); ++i) {
@@ -1625,7 +1893,7 @@ namespace webnn_native { namespace dml {
             size_t bufferLength = tensor->Size();
             auto namedOutputs = outputs->GetRecords();
             if (namedOutputs.find(outputName) != namedOutputs.end()) {
-                ArrayBufferView output = namedOutputs[outputName];
+                ArrayBufferView output = namedOutputs[outputName].arrayBufferView;
                 if (output.byteLength >= bufferLength) {
                     memcpy(static_cast<int8_t*>(output.buffer) + output.byteOffset, outputBuffer,
                            bufferLength);
@@ -1634,7 +1902,8 @@ namespace webnn_native { namespace dml {
             free(outputBuffer);
             delete tensor;
         }
-        return MLComputeGraphStatus_Success;
+#endif
+        return WNNComputeGraphStatus_Success;
     }
 
-}}  // namespace webnn_native::dml
+}  // namespace webnn_native::dml

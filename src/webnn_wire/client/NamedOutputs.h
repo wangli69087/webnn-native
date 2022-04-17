@@ -23,26 +23,23 @@
 #include <map>
 #include <string>
 
-namespace webnn_wire { namespace client {
+namespace webnn_wire::client {
 
     class NamedOutputs final : public ObjectBase {
       public:
         using ObjectBase::ObjectBase;
 
-        void Set(char const* name, MLArrayBufferView const* resource);
-        void Get(size_t index, MLArrayBufferView const* resource);
+        void Set(char const* name, WNNResource const* resource);
+        void Get(char const* name, WNNArrayBufferView const* resource);
         bool OutputResult(char const* name,
                           uint8_t const* buffer,
                           size_t byteLength,
                           size_t byteOffset);
 
       private:
-        // std::string mName;
-        // uint8_t* mBuffer;
-        // size_t mByteLength;
-        // size_t mByteOffset;
+        std::map<std::string, WNNArrayBufferView> mNamedOutputMap;
     };
 
-}}  // namespace webnn_wire::client
+}  // namespace webnn_wire::client
 
 #endif  // WEBNN_WIRE_CLIENT_NAMED_OUTPUTS_H_

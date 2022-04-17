@@ -18,12 +18,13 @@
 
 #include "webnn_native/Error.h"
 
-namespace webnn_native { namespace op {
+namespace webnn_native::op {
     Resample2d::Resample2d(GraphBuilderBase* builder,
                            OperandBase* input,
                            Resample2dOptions const* options)
         : OperatorBase(builder, {input}), mScales({1.0, 1.0}), mSizes({}), mAxes({2, 3}) {
-        mOptions.mode = options == nullptr ? ml::InterpolationMode::NearestNeighbor : options->mode;
+        mOptions.mode =
+            options == nullptr ? wnn::InterpolationMode::NearestNeighbor : options->mode;
         if (options != nullptr && options->scales != nullptr) {
             mScales.assign(options->scales, options->scales + options->scalesCount);
         }
@@ -84,4 +85,4 @@ namespace webnn_native { namespace op {
         return CalculateShape();
     }
 
-}}  // namespace webnn_native::op
+}  // namespace webnn_native::op

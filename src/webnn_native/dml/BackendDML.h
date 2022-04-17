@@ -19,9 +19,12 @@
 #include "webnn_native/Context.h"
 #include "webnn_native/Error.h"
 
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+#    include <webgpu/webgpu.h>
+#endif
 #include <memory>
 
-namespace webnn_native { namespace dml {
+namespace webnn_native::dml {
 
     class Backend : public BackendConnection {
       public:
@@ -30,9 +33,13 @@ namespace webnn_native { namespace dml {
         MaybeError Initialize();
         ContextBase* CreateContext(ContextOptions const* options = nullptr) override;
 
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        ContextBase* CreateContextWithGpuDevice(WGPUDevice device) override;
+#endif
+
       private:
     };
 
-}}  // namespace webnn_native::dml
+}  // namespace webnn_native::dml
 
 #endif  // WEBNN_NATIVE_DML_BACKENDDML_H_

@@ -15,10 +15,10 @@
 
 #include "webnn_wire/server/Server.h"
 
-namespace webnn_wire { namespace server {
+namespace webnn_wire::server {
 
     bool Server::DoGraphBuilderConstantInternal(ObjectId graphBuilderId,
-                                                MLOperandDescriptor const* desc,
+                                                WNNOperandDescriptor const* desc,
                                                 uint8_t const* buffer,
                                                 size_t byteLength,
                                                 size_t byteOffset,
@@ -40,7 +40,7 @@ namespace webnn_wire { namespace server {
                 return false;
             }
         }
-        MLArrayBufferView value;
+        WNNArrayBufferView value;
         value.buffer = const_cast<void*>(static_cast<const void*>(buffer));
         value.byteLength = byteLength;
         value.byteOffset = byteOffset;
@@ -48,4 +48,107 @@ namespace webnn_wire { namespace server {
         return true;
     }
 
-}}  // namespace webnn_wire::server
+    bool Server::DoGraphBuilderConstantWithGpuBufferInternal(ObjectId graphBuilderId,
+                                                             WNNOperandDescriptor const* desc,
+                                                             uint8_t const* buffer,
+                                                             uint32_t id,
+                                                             uint32_t generation,
+                                                             size_t size,
+                                                             size_t offset,
+                                                             ObjectHandle result) {
+        auto* graphBuilder = GraphBuilderObjects().Get(graphBuilderId);
+        if (graphBuilder == nullptr) {
+            return false;
+        }
+
+        // Create and register the operand object.
+        auto* resultData = OperandObjects().Allocate(result.id);
+        if (resultData == nullptr) {
+            return false;
+        }
+        resultData->generation = result.generation;
+        resultData->contextInfo = graphBuilder->contextInfo;
+        if (resultData->contextInfo != nullptr) {
+            if (!TrackContextChild(resultData->contextInfo, ObjectType::Operand, result.id)) {
+                return false;
+            }
+        }
+
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        WNNGpuBufferView value;
+        value.buffer = GetWGPUBuffer(id, generation);
+        value.id = id;
+        value.generation = generation;
+        value.size = size;
+        value.offset = offset;
+        resultData->handle =
+            mProcs.graphBuilderConstantWithGpuBuffer(graphBuilder->handle, desc, &value);
+#endif
+        return true;
+    }
+
+    bool Server::DoGraphBuilderGruInternal(ObjectId graphBuilderId,
+                                           ObjectId inputId,
+                                           ObjectId weightId,
+                                           ObjectId recurrentWeightId,
+                                           int32_t steps,
+                                           int32_t hiddenSize,
+                                           WNNGruOptions const* options,
+                                           ObjectHandle result) {
+        auto* graphBuilder = GraphBuilderObjects().Get(graphBuilderId);
+        auto* input = OperandObjects().Get(inputId);
+        auto* weight = OperandObjects().Get(weightId);
+        auto* recurrentWeight = OperandObjects().Get(recurrentWeightId);
+        if (graphBuilder == nullptr || input == nullptr || weight == nullptr ||
+            recurrentWeight == nullptr) {
+            return false;
+        }
+
+        // Create and register the operandArray object.
+        auto* resultData = OperandArrayObjects().Allocate(result.id);
+        if (resultData == nullptr) {
+            return false;
+        }
+        resultData->generation = result.generation;
+        resultData->contextInfo = graphBuilder->contextInfo;
+        if (resultData->contextInfo != nullptr) {
+            if (!TrackContextChild(resultData->contextInfo, ObjectType::OperandArray, result.id)) {
+                return false;
+            }
+        }
+        resultData->handle =
+            mProcs.graphBuilderGru(graphBuilder->handle, input->handle, weight->handle,
+                                   recurrentWeight->handle, steps, hiddenSize, options);
+        return true;
+    }
+
+    bool Server::DoGraphBuilderSplitInternal(ObjectId graphBuilderId,
+                                             ObjectId inputId,
+                                             uint32_t const* splits,
+                                             uint32_t splitsCount,
+                                             WNNSplitOptions const* options,
+                                             ObjectHandle result) {
+        auto* graphBuilder = GraphBuilderObjects().Get(graphBuilderId);
+        auto* input = OperandObjects().Get(inputId);
+        if (graphBuilder == nullptr || input == nullptr) {
+            return false;
+        }
+
+        // Create and register the operandArray object.
+        auto* resultData = OperandArrayObjects().Allocate(result.id);
+        if (resultData == nullptr) {
+            return false;
+        }
+        resultData->generation = result.generation;
+        resultData->contextInfo = graphBuilder->contextInfo;
+        if (resultData->contextInfo != nullptr) {
+            if (!TrackContextChild(resultData->contextInfo, ObjectType::OperandArray, result.id)) {
+                return false;
+            }
+        }
+        resultData->handle = mProcs.graphBuilderSplit(graphBuilder->handle, input->handle, splits,
+                                                      splitsCount, options);
+        return true;
+    }
+
+}  // namespace webnn_wire::server

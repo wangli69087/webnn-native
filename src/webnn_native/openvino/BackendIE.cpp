@@ -17,10 +17,10 @@
 #include "webnn_native/Instance.h"
 #include "webnn_native/openvino/ContextIE.h"
 
-namespace webnn_native { namespace ie {
+namespace webnn_native::ie {
 
     Backend::Backend(InstanceBase* instance)
-        : BackendConnection(instance, ml::BackendType::OpenVINO) {
+        : BackendConnection(instance, wnn::BackendType::OpenVINO) {
     }
 
     MaybeError Backend::Initialize() {
@@ -42,4 +42,4 @@ namespace webnn_native { namespace ie {
         return backend;
     }
 
-}}  // namespace webnn_native::ie
+}  // namespace webnn_native::ie

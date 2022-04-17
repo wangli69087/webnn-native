@@ -17,16 +17,22 @@
 #include "webnn_native/BackendConnection.h"
 #include "webnn_native/Instance.h"
 
-namespace webnn_native { namespace null {
+namespace webnn_native::null {
 
     class Backend : public BackendConnection {
       public:
-        Backend(InstanceBase* instance) : BackendConnection(instance, ml::BackendType::Null) {
+        Backend(InstanceBase* instance) : BackendConnection(instance, wnn::BackendType::Null) {
         }
 
         ContextBase* CreateContext(ContextOptions const* options) {
             return new Context(options);
         }
+
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+        ContextBase* CreateContextWithGpuDevice(WGPUDevice device) {
+            return new Context(device);
+        }
+#endif
     };
 
     BackendConnection* Connect(InstanceBase* instance) {
@@ -34,12 +40,17 @@ namespace webnn_native { namespace null {
     }
 
     // Context
-    ContextBase* Create(MLContextOptions const* options) {
+    ContextBase* Create(WNNContextOptions const* options) {
         return new Context(reinterpret_cast<ContextOptions const*>(options));
     }
 
     Context::Context(ContextOptions const* options) {
     }
+
+#if defined(WEBNN_ENABLE_GPU_BUFFER)
+    Context::Context(WGPUDevice device) {
+    }
+#endif
 
     GraphBase* Context::CreateGraphImpl() {
         return new Graph(this);
@@ -57,8 +68,8 @@ namespace webnn_native { namespace null {
         return {};
     }
 
-    MLComputeGraphStatus Graph::ComputeImpl(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
-        return MLComputeGraphStatus_Success;
+    WNNComputeGraphStatus Graph::ComputeImpl(NamedInputsBase* inputs, NamedOutputsBase* outputs) {
+        return WNNComputeGraphStatus_Success;
     }
 
     MaybeError Graph::AddConstant(const op::Constant* constant) {
@@ -69,7 +80,7 @@ namespace webnn_native { namespace null {
         return {};
     }
 
-    MaybeError Graph::AddOutput(const std::string& name, const OperandBase* output) {
+    MaybeError Graph::AddOutput(std::string_view name, const OperandBase* output) {
         return {};
     }
 
@@ -81,11 +92,39 @@ namespace webnn_native { namespace null {
         return {};
     }
 
+    MaybeError Graph::AddGru(const op::Gru* gru) {
+        return {};
+    }
+
+    MaybeError Graph::AddPad(const op::Pad* pad) {
+        return {};
+    }
+
     MaybeError Graph::AddPool2d(const op::Pool2d* pool2d) {
         return {};
     }
 
+    MaybeError Graph::AddReduce(const op::Reduce* reduce) {
+        return {};
+    }
+
+    MaybeError Graph::AddResample2d(const op::Resample2d* resample2d) {
+        return {};
+    }
+
     MaybeError Graph::AddReshape(const op::Reshape* relu) {
+        return {};
+    }
+
+    MaybeError Graph::AddSqueeze(const op::Squeeze* squeeze) {
+        return {};
+    }
+
+    MaybeError Graph::AddSlice(const op::Slice* slice) {
+        return {};
+    }
+
+    MaybeError Graph::AddSplit(const op::Split* split) {
         return {};
     }
 
@@ -101,10 +140,6 @@ namespace webnn_native { namespace null {
         return {};
     }
 
-    MaybeError Graph::AddLeakyRelu(const op::LeakyRelu* unary) {
-        return {};
-    }
-
     MaybeError Graph::AddConcat(const op::Concat* concat) {
         return {};
     }
@@ -117,8 +152,12 @@ namespace webnn_native { namespace null {
         return {};
     }
 
+    MaybeError Graph::AddInstanceNorm(const op::InstanceNorm* instanceNorm) {
+        return {};
+    }
+
     MaybeError Graph::Finish() {
         return {};
     }
 
-}}  // namespace webnn_native::null
+}  // namespace webnn_native::null
